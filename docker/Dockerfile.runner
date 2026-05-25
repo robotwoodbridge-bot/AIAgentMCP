@@ -1,0 +1,26 @@
+# =============================================================================
+# QA Test Runner Image
+# Based on the official Playwright image so browsers are pre-installed.
+# =============================================================================
+
+FROM mcr.microsoft.com/playwright/python:v1.52.0-jammy
+
+WORKDIR /qa-lab
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Initialise the Robot Framework Browser library (downloads its Node.js wrapper)
+RUN python -m Browser.entry init
+
+# Copy the entire project
+COPY . .
+
+# Default: run the smoke suite
+CMD ["python", "-m", "robot", "--outputdir", "results", "tests/smoke/"]

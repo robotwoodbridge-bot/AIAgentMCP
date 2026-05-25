@@ -1,0 +1,93 @@
+# =============================================================================
+# Central Configuration — QA Lab (Phase 2)
+# =============================================================================
+# This file is the single source of truth for environment-specific settings.
+# Reference values from Robot Framework using the yaml_config library, or
+# load them in Python with PyYAML.
+#
+# Usage in Robot Framework:
+#   Library    Collections
+#   ${cfg}=    Evaluate    yaml.safe_load(open('config/settings.yaml'))    yaml
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Environments
+# Set the active environment via the ENVIRONMENT variable or CLI override:
+#   robot --variable ENVIRONMENT:production tests/
+# ---------------------------------------------------------------------------
+environments:
+  staging:
+    base_url: https://practice.expandtesting.com
+    login_url: https://practice.expandtesting.com/login
+    api_url: https://practice.expandtesting.com/api
+
+  production:
+    base_url: https://practice.expandtesting.com
+    login_url: https://practice.expandtesting.com/login
+    api_url: https://practice.expandtesting.com/api
+
+# Active environment (override with --variable ENVIRONMENT:production)
+active_environment: staging
+
+# ---------------------------------------------------------------------------
+# Browser settings
+# ---------------------------------------------------------------------------
+browser:
+  type: Chromium                # Chromium | Firefox | WebKit
+  headless: false               # set to true in CI via --variable HEADLESS_MODE:True
+  slow_mo: 0                    # milliseconds between actions (useful for debugging)
+  timeout: 30000                # global element timeout in ms
+  args:
+    - "--start-maximized"
+    - "--disable-dev-shm-usage"
+
+# ---------------------------------------------------------------------------
+# Selenium Grid (Phase 2)
+# When running containerised tests via docker-compose, these point at the hub.
+# ---------------------------------------------------------------------------
+selenium_grid:
+  enabled: false                # flip to true when running via docker compose
+  hub_url: http://localhost:4444/wd/hub
+
+# ---------------------------------------------------------------------------
+# Parallel execution (pabot)
+# ---------------------------------------------------------------------------
+parallel:
+  processes: 4                  # number of parallel Robot Framework workers
+  output_dir: results
+
+# ---------------------------------------------------------------------------
+# Reporting
+# ---------------------------------------------------------------------------
+reporting:
+  allure_results_dir: results/allure-results
+  robot_output_dir: results
+  log_level: INFO               # TRACE | DEBUG | INFO | WARN | ERROR
+
+# ---------------------------------------------------------------------------
+# Observability — Loki log shipping
+# ---------------------------------------------------------------------------
+loki:
+  enabled: false                # enable when Docker stack is running
+  url: http://localhost:3100/loki/api/v1/push
+  labels:
+    job: qa-lab
+    env: staging
+
+# ---------------------------------------------------------------------------
+# Test data
+# ---------------------------------------------------------------------------
+test_data:
+  valid_username: practice
+  valid_password: SuperSecretPassword!
+  invalid_username: invalid_user
+  invalid_password: WrongPassword123
+
+# ---------------------------------------------------------------------------
+# Timeouts (seconds unless noted)
+# ---------------------------------------------------------------------------
+timeouts:
+  default_wait: 5
+  element_timeout: 10
+  page_load: 30
+  api_response: 15
