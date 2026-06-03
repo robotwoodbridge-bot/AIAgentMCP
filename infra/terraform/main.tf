@@ -42,22 +42,20 @@ resource "docker_volume" "loki_storage" {
 }
 
 # =============================================================================
-# Images — pulled once, reused by container resources
+# Images
 # =============================================================================
 
-resource "docker_image" "selenium_hub" {
-  name         = "seleniarm/hub:${var.selenium_version}"
-  keep_locally = true
-}
-
-resource "docker_image" "selenium_chromium" {
-  name         = "seleniarm/node-chromium:${var.selenium_version}"
-  keep_locally = true
-}
-
-resource "docker_image" "selenium_firefox" {
-  name         = "seleniarm/node-firefox:${var.selenium_version}"
-  keep_locally = true
+resource "docker_image" "playwright_runner" {
+  name = "qa-lab-runner:latest"
+  build {
+    context    = abspath("${path.module}/../..")
+    dockerfile = "docker/Dockerfile.runner"
+  }
+  # Rebuild when the Dockerfile or requirements change
+  triggers = {
+    dockerfile   = filemd5("${path.module}/../../docker/Dockerfile.runner")
+    requirements = filemd5("${path.module}/../../requirements.txt")
+  }
 }
 
 resource "docker_image" "loki" {
@@ -71,109 +69,39 @@ resource "docker_image" "grafana" {
 }
 
 # =============================================================================
-# Selenium Hub
+# Playwright Runner
+# The test runner container has Playwright + all browsers baked in via
+# mcr.microsoft.com/playwright/python. Tests are volume-mounted from the
+# host so edits are reflected instantly without a rebuild.
+# Run tests inside it with:
+#   docker exec qa-playwright-runner python -m robot --outputdir results tests/
 # =============================================================================
 
-resource "docker_container" "selenium_hub" {
-  name  = "selenium-hub"
-  image = docker_image.selenium_hub.image_id
+resource "docker_container" "playwright_runner" {
+  name    = "qa-playwright-runner"
+  image   = docker_image.playwright_runner.image_id
+  command = ["tail", "-f", "/dev/null"] # keeps container alive; tests launched via exec
 
   networks_advanced {
     name = docker_network.qa_net.name
   }
 
-  ports {
-    internal = 4444
-    external = var.grid_port
-  }
-  ports {
-    internal = 4442
-    external = 4442
-  }
-  ports {
-    internal = 4443
-    external = 4443
+  # Mount project root live — edits on host are visible inside the container
+  # without a rebuild. results/ is also written back to the host.
+  volumes {
+    host_path      = abspath("${path.module}/../..")
+    container_path = "/qa-lab"
   }
 
   env = [
-    "SE_SESSION_REQUEST_TIMEOUT=${var.session_timeout}",
-    "SE_SESSION_RETRY_INTERVAL=5",
+    "LOKI_URL=http://qa-loki:3100/loki/api/v1/push",
+    "LOKI_ENABLED=${var.loki_enabled}",
+    "PYTHONPATH=/qa-lab",
   ]
 
-  healthcheck {
-    test         = ["CMD", "curl", "-f", "http://localhost:4444/status"]
-    interval     = "15s"
-    timeout      = "10s"
-    retries      = 5
-    start_period = "10s"
-  }
-
   restart = "unless-stopped"
-}
 
-# =============================================================================
-# Chromium Node
-# =============================================================================
-
-resource "docker_container" "chromium" {
-  name  = "selenium-chromium"
-  image = docker_image.selenium_chromium.image_id
-
-  networks_advanced {
-    name = docker_network.qa_net.name
-  }
-
-  ports {
-    internal = 7900
-    external = var.chromium_novnc_port
-  }
-
-  env = [
-    "SE_EVENT_BUS_HOST=selenium-hub",
-    "SE_EVENT_BUS_PUBLISH_PORT=4442",
-    "SE_EVENT_BUS_SUBSCRIBE_PORT=4443",
-    "SE_NODE_MAX_SESSIONS=${var.node_max_sessions}",
-    "SE_NODE_SESSION_TIMEOUT=${var.session_timeout}",
-    "SE_VNC_NO_PASSWORD=1",
-  ]
-
-  shm_size = 2147483648 # 2 GB in bytes
-
-  depends_on = [docker_container.selenium_hub]
-
-  restart = "unless-stopped"
-}
-
-# =============================================================================
-# Firefox Node
-# =============================================================================
-
-resource "docker_container" "firefox" {
-  name  = "selenium-firefox"
-  image = docker_image.selenium_firefox.image_id
-
-  networks_advanced {
-    name = docker_network.qa_net.name
-  }
-
-  ports {
-    internal = 7900
-    external = var.firefox_novnc_port
-  }
-
-  env = [
-    "SE_EVENT_BUS_HOST=selenium-hub",
-    "SE_EVENT_BUS_PUBLISH_PORT=4442",
-    "SE_EVENT_BUS_SUBSCRIBE_PORT=4443",
-    "SE_NODE_MAX_SESSIONS=${var.node_max_sessions}",
-    "SE_NODE_SESSION_TIMEOUT=${var.session_timeout}",
-  ]
-
-  shm_size = 2147483648 # 2 GB in bytes
-
-  depends_on = [docker_container.selenium_hub]
-
-  restart = "unless-stopped"
+  depends_on = [docker_container.loki]
 }
 
 # =============================================================================

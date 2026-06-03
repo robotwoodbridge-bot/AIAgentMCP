@@ -24,6 +24,10 @@ ${FAILURE_LOGIN_MESSAGE}    Your username is invalid!
 ${BROWSER_TYPE}             Chromium
 ${HEADLESS_MODE}            False
 ${BROWSER_ARGS}             ["--start-maximized"]
+# Timeout for Browser library element waits.
+# Headed/xvfb mode needs a longer timeout than headless.
+# Override per-run: --variable BROWSER_TIMEOUT:30s
+${BROWSER_TIMEOUT}          30s
 
 # Wait Times (in seconds)
 ${DEFAULT_WAIT_TIME}        5

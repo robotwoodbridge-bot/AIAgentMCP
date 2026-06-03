@@ -1,21 +1,26 @@
-output "selenium_grid_url" {
-  description = "Selenium Grid 4 WebDriver endpoint — use as SELENIUM_REMOTE_URL in test runs (Grid 4 dropped the legacy /wd/hub path)"
-  value       = "http://localhost:${var.grid_port}"
+output "run_headless" {
+  description = "Run all tests headless inside the IaC container (no display needed — CI-safe)"
+  value       = "docker exec qa-playwright-runner python -m robot --outputdir results --variable HEADLESS_MODE:True tests/"
 }
 
-output "grid_console_url" {
-  description = "Selenium Grid live console"
-  value       = "http://localhost:${var.grid_port}/ui"
+output "run_headless_smoke" {
+  description = "Run smoke suite headless inside the IaC container"
+  value       = "docker exec qa-playwright-runner python -m robot --outputdir results --variable HEADLESS_MODE:True tests/smoke/"
 }
 
-output "chromium_novnc_url" {
-  description = "Watch Chromium test execution live"
-  value       = "http://localhost:${var.chromium_novnc_port}"
+output "run_headed" {
+  description = "Run all tests headed inside the IaC container via xvfb virtual display"
+  value       = "docker exec qa-playwright-runner xvfb-run --auto-servernum python -m robot --outputdir results --variable HEADLESS_MODE:False --variable BROWSER_TIMEOUT:30s tests/"
 }
 
-output "firefox_novnc_url" {
-  description = "Watch Firefox test execution live"
-  value       = "http://localhost:${var.firefox_novnc_port}"
+output "run_headed_smoke" {
+  description = "Run smoke suite headed inside the IaC container via xvfb virtual display"
+  value       = "docker exec qa-playwright-runner xvfb-run --auto-servernum python -m robot --outputdir results --variable HEADLESS_MODE:False --variable BROWSER_TIMEOUT:30s tests/smoke/"
+}
+
+output "runner_shell_cmd" {
+  description = "Open an interactive shell inside the runner container"
+  value       = "docker exec -it qa-playwright-runner bash"
 }
 
 output "grafana_url" {
@@ -24,7 +29,7 @@ output "grafana_url" {
 }
 
 output "loki_ready_url" {
-  description = "Loki readiness check — should return 'ready' (HTTP 200). Root path / returns 404 by design."
+  description = "Loki readiness check — HTTP 200 = healthy. Root / returns 404 by design."
   value       = "http://localhost:${var.loki_port}/ready"
 }
 

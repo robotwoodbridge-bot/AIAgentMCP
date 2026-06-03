@@ -1,9 +1,3 @@
-variable "selenium_version" {
-  description = "seleniarm image tag for hub and browser nodes"
-  type        = string
-  default     = "4.20.0"
-}
-
 variable "loki_version" {
   description = "Grafana Loki image tag"
   type        = string
@@ -14,24 +8,6 @@ variable "grafana_version" {
   description = "Grafana image tag"
   type        = string
   default     = "10.4.2"
-}
-
-variable "grid_port" {
-  description = "Host port for the Selenium Grid console and WebDriver endpoint"
-  type        = number
-  default     = 4444
-}
-
-variable "chromium_novnc_port" {
-  description = "Host port for the Chromium node noVNC viewer"
-  type        = number
-  default     = 7900
-}
-
-variable "firefox_novnc_port" {
-  description = "Host port for the Firefox node noVNC viewer"
-  type        = number
-  default     = 7901
 }
 
 variable "loki_port" {
@@ -53,14 +29,8 @@ variable "grafana_admin_password" {
   default     = "admin"
 }
 
-variable "node_max_sessions" {
-  description = "Maximum concurrent sessions per browser node"
-  type        = number
-  default     = 4
-}
-
-variable "session_timeout" {
-  description = "Selenium session timeout in seconds"
-  type        = number
-  default     = 300
+variable "loki_enabled" {
+  description = "Enable Loki log shipping from the test runner"
+  type        = bool
+  default     = true
 }
