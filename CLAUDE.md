@@ -1,6 +1,6 @@
 # QA Lab — Claude Code Guide
 
-Robot Framework test automation platform with Playwright/Selenium browser automation, parallel execution, Docker-based Selenium Grid, and Allure/Grafana observability. Three-phase roadmap: Phase 1 (core RF + Playwright), Phase 2 (parallel + Docker + reporting), Phase 3 (AI/LLM integration via Ollama).
+Robot Framework test automation platform with Playwright browser automation, parallel execution, Terraform-managed Docker IaC (Playwright runner + Grafana/Loki observability), and Allure reporting. Three-phase roadmap: Phase 1 (core RF + Playwright), Phase 2 (parallel + Docker + reporting), Phase 3 (AI/LLM integration via Ollama).
 
 ## Environment Setup
 
@@ -25,11 +25,12 @@ Activate the venv before every session: `source .venv/bin/activate`
 ./utils/run_parallel.sh smoke 2       # smoke suite, 2 workers
 ```
 
-**Against Selenium Grid (requires Docker stack running):**
+**Inside IaC container (Playwright + Grafana/Loki observability):**
 ```bash
-./utils/start_stack.sh                # start hub + nodes + observability
-./utils/run_grid.sh smoke             # run tests on Grid
-./utils/start_stack.sh stop           # tear down
+cd infra/terraform && terraform apply  # start playwright-runner + loki + grafana
+./utils/run_iac.sh smoke               # run smoke suite headless inside container
+./utils/run_iac.sh smoke --headed      # run smoke suite headed via xvfb
+cd infra/terraform && terraform destroy # tear down
 ```
 
 **View reports:**
@@ -55,9 +56,8 @@ qa-lab/
 │   └── loki-config.yaml        # Loki log aggregation config
 ├── ci/qa-pipeline.yml          # GitHub Actions workflow — copy to .github/workflows/
 ├── utils/
-│   ├── run_parallel.sh         # Pabot parallel runner wrapper
-│   ├── run_grid.sh             # Runner targeting Selenium Grid
-│   └── start_stack.sh          # Docker stack control (start/stop/status)
+│   ├── run_parallel.sh         # Pabot parallel runner wrapper (local, no Docker)
+│   └── run_iac.sh              # Playwright runner inside Terraform IaC container
 └── results/                    # Git-ignored output (reports, traces, allure results)
 ```
 
