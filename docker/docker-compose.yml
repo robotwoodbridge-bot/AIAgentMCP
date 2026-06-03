@@ -49,7 +49,7 @@ services:
       - SE_SESSION_REQUEST_TIMEOUT=300
       - SE_SESSION_RETRY_INTERVAL=5
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4444/wd/hub/status"]
+      test: ["CMD", "curl", "-f", "http://localhost:4444/status"]
       interval: 15s
       timeout: 10s
       retries: 5
@@ -118,7 +118,7 @@ services:
     networks:
       - qa-net
     environment:
-      - SELENIUM_REMOTE_URL=http://selenium-hub:4444/wd/hub
+      - SELENIUM_REMOTE_URL=http://selenium-hub:4444
       - ROBOT_THREADS=4
     volumes:
       - ../results:/qa-lab/results          # test output lands on your host

@@ -47,7 +47,7 @@ browser:
 # ---------------------------------------------------------------------------
 selenium_grid:
   enabled: false                # flip to true when running via docker compose
-  hub_url: http://localhost:4444/wd/hub
+  hub_url: http://localhost:4444
 
 # ---------------------------------------------------------------------------
 # Parallel execution (pabot)

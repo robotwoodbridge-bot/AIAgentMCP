@@ -15,7 +15,7 @@
 set -euo pipefail
 
 SUITE=${1:-"regression"}
-HUB_URL="http://localhost:4444/wd/hub"
+HUB_URL="http://localhost:4444"
 OUTPUT_DIR="results/grid"
 ALLURE_DIR="${OUTPUT_DIR}/allure-results"
 
@@ -26,7 +26,7 @@ echo "  Grid URL : ${HUB_URL}"
 echo "=============================================="
 
 # Verify the grid is reachable before running
-if ! curl -sf "${HUB_URL}/status" > /dev/null; then
+if ! curl -sf "${HUB_URL}/status" > /dev/null 2>&1; then
   echo ""
   echo "ERROR: Selenium Grid is not reachable at ${HUB_URL}"
   echo "Start it with: cd docker && docker compose up -d selenium-hub chrome firefox"
