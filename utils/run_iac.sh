@@ -13,6 +13,10 @@
 
 set -euo pipefail
 
+# Always operate from the repo root regardless of where the script is called from
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+
 SUITE=${1:-""}
 HEADLESS="True"
 CONTAINER="qa-playwright-runner"

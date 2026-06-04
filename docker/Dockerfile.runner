@@ -5,7 +5,7 @@
 
 FROM mcr.microsoft.com/playwright/python:v1.52.0-jammy
 
-WORKDIR /qa-lab
+WORKDIR /robotkali
 
 # Install system dependencies + Node.js 20 LTS + xvfb (virtual display for headed mode)
 # Ubuntu apt ships Node 12 which is too old for RF Browser — requires Node >= 16

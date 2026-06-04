@@ -26,3 +26,9 @@ docker exec qa-playwright-runner python -m robot \
 **IaC Container Headed slow**
 docker exec qa-playwright-runner xvfb-run --auto-servernum python -m robot \
   --outputdir results --variable HEADLESS_MODE:False --variable BROWSER_TIMEOUT:30s tests/
+
+
+  **Check if the test run inside Container**
+  docker exec qa-playwright-runner cat results/log.html | grep -o "robot version.*" | head -1
+
+  

@@ -45,17 +45,25 @@ resource "docker_volume" "loki_storage" {
 # Images
 # =============================================================================
 
-resource "docker_image" "playwright_runner" {
-  name = "qa-lab-runner:latest"
-  build {
-    context    = abspath("${path.module}/../..")
-    dockerfile = "docker/Dockerfile.runner"
-  }
-  # Rebuild when the Dockerfile or requirements change
+# Build the image with the native docker CLI to avoid the kreuzwerker provider's
+# legacy build API which corrupts the tar stream on some Docker Desktop versions.
+resource "null_resource" "playwright_runner_build" {
   triggers = {
     dockerfile   = filemd5("${path.module}/../../docker/Dockerfile.runner")
     requirements = filemd5("${path.module}/../../requirements.txt")
   }
+
+  provisioner "local-exec" {
+    command = "docker build -t robotkali-runner:latest -f docker/Dockerfile.runner ."
+    working_dir = abspath("${path.module}/../..")
+  }
+}
+
+resource "docker_image" "playwright_runner" {
+  name         = "robotkali-runner:latest"
+  keep_locally = true
+
+  depends_on = [null_resource.playwright_runner_build]
 }
 
 resource "docker_image" "loki" {
@@ -90,13 +98,13 @@ resource "docker_container" "playwright_runner" {
   # without a rebuild. results/ is also written back to the host.
   volumes {
     host_path      = abspath("${path.module}/../..")
-    container_path = "/qa-lab"
+    container_path = "/robotkali"
   }
 
   env = [
     "LOKI_URL=http://qa-loki:3100/loki/api/v1/push",
     "LOKI_ENABLED=${var.loki_enabled}",
-    "PYTHONPATH=/qa-lab",
+    "PYTHONPATH=/robotkali",
   ]
 
   restart = "unless-stopped"
