@@ -7,7 +7,7 @@
 #
 # What it does:
 #   1. Checks out the repo
-#   2. Installs Terraform
+#   2. Installs Terraform via HashiCorp apt repo (no Marketplace extension needed)
 #   3. terraform init + apply  →  spins up playwright-runner, Loki, Grafana
 #   4. Runs the Robot Framework smoke suite inside the container via docker exec
 #   5. terraform destroy       →  tears down all containers (always runs)
@@ -31,6 +31,7 @@ pool:
   vmImage: ubuntu-latest
 
 variables:
+  TF_VERSION: "1.8.5"
   TF_DIR: $(Build.SourcesDirectory)/infra/terraform
   RESULTS_DIR: $(Build.SourcesDirectory)/results
   ALLURE_DIR: $(Build.SourcesDirectory)/results/allure-results
@@ -51,34 +52,31 @@ stages:
           - checkout: self
 
           # ------------------------------------------------------------------
-          # 2. Install Terraform (pinned for reproducibility)
+          # 2. Install Terraform from HashiCorp apt repo — no Marketplace
+          #    extension required, works on any ubuntu-latest agent.
           # ------------------------------------------------------------------
-          - task: TerraformInstaller@1
-            displayName: Install Terraform 1.8.5
-            inputs:
-              terraformVersion: "1.8.5"
+          - script: |
+              curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+              echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
+                | sudo tee /etc/apt/sources.list.d/hashicorp.list
+              sudo apt-get update -qq && sudo apt-get install -y terraform=$(TF_VERSION)-1
+              terraform version
+            displayName: Install Terraform $(TF_VERSION)
 
           # ------------------------------------------------------------------
           # 3. terraform init
           # ------------------------------------------------------------------
-          - task: TerraformTaskV4@4
+          - script: terraform init
             displayName: Terraform init
-            inputs:
-              provider: local
-              command: init
-              workingDirectory: $(TF_DIR)
+            workingDirectory: $(TF_DIR)
 
           # ------------------------------------------------------------------
           # 4. terraform apply — spin up playwright-runner + Loki + Grafana
           #    -auto-approve skips the interactive prompt in CI
           # ------------------------------------------------------------------
-          - task: TerraformTaskV4@4
+          - script: terraform apply -auto-approve
             displayName: Terraform apply (start IaC stack)
-            inputs:
-              provider: local
-              command: apply
-              workingDirectory: $(TF_DIR)
-              commandOptions: "-auto-approve"
+            workingDirectory: $(TF_DIR)
 
           # ------------------------------------------------------------------
           # 5. Wait for the playwright-runner container to be running
@@ -116,14 +114,10 @@ stages:
           # 7. terraform destroy — ALWAYS runs so containers never leak
           #    between pipeline runs
           # ------------------------------------------------------------------
-          - task: TerraformTaskV4@4
+          - script: terraform destroy -auto-approve
             displayName: Terraform destroy (tear down IaC stack)
+            workingDirectory: $(TF_DIR)
             condition: always()
-            inputs:
-              provider: local
-              command: destroy
-              workingDirectory: $(TF_DIR)
-              commandOptions: "-auto-approve"
 
           # ------------------------------------------------------------------
           # 8. Publish Allure results
