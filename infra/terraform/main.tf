@@ -46,7 +46,7 @@ resource "docker_volume" "loki_storage" {
 # =============================================================================
 
 resource "docker_image" "playwright_runner" {
-  name = "qa-lab-runner:latest"
+  name = "robotkali-runner:latest"
   build {
     context    = abspath("${path.module}/../..")
     dockerfile = "docker/Dockerfile.runner"
@@ -90,13 +90,13 @@ resource "docker_container" "playwright_runner" {
   # without a rebuild. results/ is also written back to the host.
   volumes {
     host_path      = abspath("${path.module}/../..")
-    container_path = "/qa-lab"
+    container_path = "/robotkali"
   }
 
   env = [
     "LOKI_URL=http://qa-loki:3100/loki/api/v1/push",
     "LOKI_ENABLED=${var.loki_enabled}",
-    "PYTHONPATH=/qa-lab",
+    "PYTHONPATH=/robotkali",
   ]
 
   restart = "unless-stopped"
