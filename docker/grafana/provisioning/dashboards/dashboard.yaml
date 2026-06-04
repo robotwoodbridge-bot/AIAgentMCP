@@ -1,0 +1,17 @@
+# =============================================================================
+# Grafana Dashboard Provisioning
+# Points Grafana at the local dashboard JSON files in this directory.
+# =============================================================================
+
+apiVersion: 1
+
+providers:
+  - name: QA Lab Dashboards
+    orgId: 1
+    folder: QA Lab
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards

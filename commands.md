@@ -1,0 +1,28 @@
+### terraform commands ###
+cd infra/terraform/
+terraform init (!only first time)
+terraform play
+    ## should see ##
+    chromium_novnc_url = "http://localhost:7900"
+    firefox_novnc_url = "http://localhost:7901"
+    grafana_url = "http://localhost:3000"
+    grid_console_url = "http://localhost:4444/ui"
+    loki_url = "http://localhost:3100/metrices"
+    selenium_grid_url = "http://localhost:4444"  
+terraform destroy
+
+# Stack must be up first
+cd infra/terraform && terraform apply -auto-approve
+
+**One test suite, three ways to run — same `.robot` files every time:**
+| Local dev (fast iteration) | `python -m robot tests/`             | Your Mac         |
+| Via script                 | `./utils/run_iac.sh smoke`           | Docker container |
+| Via script                 | `./utils/run_iac.sh smoke --headed`  | Docker container |
+
+**IaC Container Headless fastest**
+docker exec qa-playwright-runner python -m robot \
+  --outputdir results --variable HEADLESS_MODE:True tests/
+
+**IaC Container Headed slow**
+docker exec qa-playwright-runner xvfb-run --auto-servernum python -m robot \
+  --outputdir results --variable HEADLESS_MODE:False --variable BROWSER_TIMEOUT:30s tests/

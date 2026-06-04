@@ -1,0 +1,48 @@
+# Core Robot Framework
+robotframework==7.0
+robotframework-browser==18.3.0
+
+# Playwright backend
+playwright==1.52.0
+
+# Parallel Robot Framework execution (Phase 2)
+robotframework-pabot==2.18.0
+
+# Selenium support for Grid execution (Phase 2)
+robotframework-seleniumlibrary==6.3.0
+selenium==4.20.0
+
+# API testing
+requests==2.32.3
+httpx==0.28.1
+
+# Pytest support
+pytest==8.3.5
+pytest-xdist==3.6.1
+
+# Reporting — Allure for both pytest and Robot Framework (Phase 2)
+allure-pytest==2.13.5
+allure-robotframework==2.13.5
+
+# Log shipping to Loki (Phase 2)
+python-logging-loki==0.3.1
+
+# Configuration management
+python-dotenv==1.0.1
+PyYAML==6.0.2
+
+# Logging / utilities
+rich==14.0.0
+tenacity==9.1.2
+
+# Data generation
+faker==37.1.0
+
+# Async support
+anyio==4.9.0
+
+# AI / local LLM integration
+ollama==0.5.1
+
+# Optional MCP support
+mcp==1.8.1

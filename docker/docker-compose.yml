@@ -1,0 +1,177 @@
+# =============================================================================
+# Phase 2 — QA Lab Docker Compose Stack (Apple Silicon / ARM64 edition)
+# =============================================================================
+# Services:
+#   selenium-hub     — Selenium Grid 4 hub (UI at http://localhost:4444)
+#   chromium         — Chromium browser node (ARM64-native; Chrome has no ARM Linux build)
+#   firefox          — Firefox browser node (ARM64-native)
+#   test-runner      — Robot Framework + Playwright runner (for CI-style local runs)
+#   loki             — Log aggregation backend
+#   grafana          — Dashboard UI (at http://localhost:3000, admin/admin)
+#
+# Usage:
+#   Start the grid + observability only:
+#     docker compose up -d selenium-hub chrome firefox loki grafana
+#
+#   Run all tests inside Docker and collect results:
+#     docker compose up --build test-runner
+#
+#   Tear everything down:
+#     docker compose down -v
+# =============================================================================
+
+networks:
+  qa-net:
+    driver: bridge
+
+volumes:
+  grafana-storage:
+  loki-storage:
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Selenium Grid 4 — Hub
+  # Uses the seleniarm image which is built natively for ARM64 (Apple Silicon).
+  # Access the live grid at: http://localhost:4444/ui
+  # ---------------------------------------------------------------------------
+  selenium-hub:
+    image: seleniarm/hub:4.20.0
+    platform: linux/arm64
+    container_name: selenium-hub
+    ports:
+      - "4444:4444"   # Grid console + WebDriver endpoint
+      - "4442:4442"   # Event bus publish port
+      - "4443:4443"   # Event bus subscribe port
+    networks:
+      - qa-net
+    environment:
+      - SE_SESSION_REQUEST_TIMEOUT=300
+      - SE_SESSION_RETRY_INTERVAL=5
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4444/status"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Chromium Node (ARM64-native)
+  # Google Chrome has no ARM Linux build; Chromium is the ARM equivalent.
+  # Scale up with: docker compose up --scale chromium=3
+  # ---------------------------------------------------------------------------
+  chromium:
+    image: seleniarm/node-chromium:4.20.0
+    platform: linux/arm64
+    container_name: selenium-chromium
+    depends_on:
+      selenium-hub:
+        condition: service_healthy
+    networks:
+      - qa-net
+    environment:
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+      - SE_NODE_MAX_SESSIONS=4
+      - SE_NODE_SESSION_TIMEOUT=300
+      - SE_VNC_NO_PASSWORD=1
+    shm_size: "2gb"
+    ports:
+      - "7900:7900"   # noVNC viewer — watch Chromium live at http://localhost:7900
+
+  # ---------------------------------------------------------------------------
+  # Firefox Node (ARM64-native)
+  # ---------------------------------------------------------------------------
+  firefox:
+    image: seleniarm/node-firefox:4.20.0
+    platform: linux/arm64
+    container_name: selenium-firefox
+    depends_on:
+      selenium-hub:
+        condition: service_healthy
+    networks:
+      - qa-net
+    environment:
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+      - SE_NODE_MAX_SESSIONS=4
+      - SE_NODE_SESSION_TIMEOUT=300
+    shm_size: "2gb"
+    ports:
+      - "7901:7900"   # noVNC viewer at http://localhost:7901
+
+  # ---------------------------------------------------------------------------
+  # Test Runner
+  # Builds a container with Robot Framework + Playwright installed, then runs
+  # the full test suite. Results are written to ./results on the host.
+  # Only used when you want CI-style fully-containerised execution locally.
+  # ---------------------------------------------------------------------------
+  test-runner:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.runner
+    container_name: qa-test-runner
+    depends_on:
+      selenium-hub:
+        condition: service_healthy
+    networks:
+      - qa-net
+    environment:
+      - SELENIUM_REMOTE_URL=http://selenium-hub:4444
+      - ROBOT_THREADS=4
+    volumes:
+      - ../results:/qa-lab/results          # test output lands on your host
+      - ../reports:/qa-lab/reports          # allure results land on your host
+    command: >
+      bash -c "
+        python -m pabot --processes 4
+          --outputdir results
+          --listener allure_robotframework
+          tests/
+      "
+    profiles:
+      - run   # only starts when you explicitly include this profile
+
+  # ---------------------------------------------------------------------------
+  # Loki — Log Aggregation
+  # Receives logs pushed by the test runner and stores them for Grafana.
+  # ---------------------------------------------------------------------------
+  loki:
+    image: grafana/loki:2.9.7
+    container_name: qa-loki
+    ports:
+      - "3100:3100"
+    networks:
+      - qa-net
+    volumes:
+      - ./loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki-storage:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3100/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Grafana — Dashboards
+  # Pre-provisioned with Loki as a datasource.
+  # Login: http://localhost:3000  |  admin / admin
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: qa-grafana
+    depends_on:
+      loki:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    networks:
+      - qa-net
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-storage:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
