@@ -1,0 +1,138 @@
+# =============================================================================
+# Azure Pipelines — Security Scan Pipeline
+# =============================================================================
+# HOW TO ACTIVATE:
+#   Pipelines → New Pipeline → Azure Repos Git → robotkali
+#   → Existing Azure Pipelines YAML file → ci/azure-security-pipeline.yml
+#
+# Phase rollout:
+#   Phase 1: Scaffold — manual trigger only
+#   Phase 2: Baseline run — continueOnError: true (non-blocking, record findings)
+#   Phase 3: Threshold enforcement — remove continueOnError, set FAIL_ON_SEVERITY: HIGH
+#   Phase 4: Pre-release full scan — set ZAP scan_type: "full" in settings.yaml
+# =============================================================================
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+  paths:
+    # Limit automatic triggers to security-related changes.
+    # Phase 3: remove this filter to enforce the gate on every push.
+    include:
+      - tests/security/**
+      - keywords/security.robot
+      - config/settings.yaml
+      - utils/run_security.sh
+
+pr:
+  branches:
+    include:
+      - main
+
+parameters:
+  - name: environment
+    displayName: Target Environment
+    type: string
+    default: staging
+    values:
+      - staging
+      - production
+
+  - name: failOnSeverity
+    displayName: Fail On Severity
+    type: string
+    default: MEDIUM
+    values:
+      - LOW
+      - MEDIUM
+      - HIGH
+      - CRITICAL
+
+variables:
+  pythonVersion: "3.12"
+  outputDir: "$(Build.SourcesDirectory)/results"
+  securityDir: "$(Build.SourcesDirectory)/results/security"
+
+stages:
+  # --------------------------------------------------------------------------
+  # Stage 1 — Security Scan
+  # continueOnError: true during Phase 1 & 2 — non-blocking.
+  # Phase 3: remove continueOnError from both the job and the scan step.
+  # --------------------------------------------------------------------------
+  - stage: SecurityScan
+    displayName: "Security Scan (ZAP / Nikto / Nmap)"
+    jobs:
+      - job: RunScans
+        displayName: "Vulnerability Scans"
+        pool:
+          vmImage: ubuntu-latest
+        timeoutInMinutes: 60
+        continueOnError: true   # Phase 3: remove this line
+
+        steps:
+          - checkout: self
+            displayName: "Checkout repository"
+
+          - task: UsePythonVersion@0
+            displayName: "Use Python $(pythonVersion)"
+            inputs:
+              versionSpec: "$(pythonVersion)"
+              addToPath: true
+
+          - script: pip install -r requirements.txt
+            displayName: "Install Python dependencies"
+
+          - script: |
+              docker pull ghcr.io/zaproxy/zaproxy:stable --quiet
+              docker pull frapsoft/nikto                  --quiet
+              docker pull instrumentisto/nmap             --quiet
+            displayName: "Pull scan tool images"
+
+          - script: mkdir -p $(securityDir)
+            displayName: "Create security output directory"
+
+          - script: |
+              python -m robot \
+                --outputdir $(outputDir) \
+                --variable ENVIRONMENT:${{ parameters.environment }} \
+                --variable FAIL_ON_SEVERITY:${{ parameters.failOnSeverity }} \
+                --loglevel INFO \
+                --name "Security Scan — ${{ parameters.environment }}" \
+                tests/security/
+            displayName: "Run security scan suite"
+            continueOnError: true   # Phase 3: remove this line
+
+          # ------------------------------------------------------------------
+          # Publish RF report
+          # ------------------------------------------------------------------
+          - task: PublishPipelineArtifact@1
+            displayName: "Publish RF report"
+            condition: always()
+            inputs:
+              targetPath: "$(outputDir)/report.html"
+              artifact: "security-rf-report-${{ parameters.environment }}"
+              publishLocation: pipeline
+
+          # ------------------------------------------------------------------
+          # Publish raw scan output (ZAP JSON, Nikto JSON, Nmap XML)
+          # ------------------------------------------------------------------
+          - task: PublishPipelineArtifact@1
+            displayName: "Publish raw scan findings"
+            condition: always()
+            inputs:
+              targetPath: "$(securityDir)"
+              artifact: "security-raw-findings-${{ parameters.environment }}"
+              publishLocation: pipeline
+
+          # ------------------------------------------------------------------
+          # Publish RF logs for debugging
+          # ------------------------------------------------------------------
+          - task: PublishPipelineArtifact@1
+            displayName: "Publish RF logs"
+            condition: always()
+            inputs:
+              targetPath: "$(outputDir)"
+              artifact: "security-rf-logs-${{ parameters.environment }}"
+              publishLocation: pipeline
