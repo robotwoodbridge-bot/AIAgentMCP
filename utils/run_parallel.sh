@@ -14,16 +14,16 @@
 
 set -euo pipefail
 
-SUITE=${1:-""}          # optional subfolder under tests/
+SUITE=${1:-""}          # optional subfolder under tests/ (omit or use "smoke", not ".")
 PROCESSES=${2:-4}       # number of parallel workers
 OUTPUT_DIR="results"
 ALLURE_DIR="${OUTPUT_DIR}/allure-results"
 
-# Resolve the test path
-if [[ -n "$SUITE" ]]; then
-  TEST_PATH="tests/${SUITE}"
-else
+# Resolve the test path — treat "." or empty as "run everything"
+if [[ -z "$SUITE" || "$SUITE" == "." ]]; then
   TEST_PATH="tests"
+else
+  TEST_PATH="tests/${SUITE}"
 fi
 
 echo "=============================================="
@@ -33,12 +33,14 @@ echo "  Workers  : ${PROCESSES}"
 echo "  Output   : ${OUTPUT_DIR}"
 echo "=============================================="
 
-# Clean previous results
+# Clean previous results and stale pabot suite cache
 rm -rf "${OUTPUT_DIR}"
+rm -f .pabotsuitenames
 mkdir -p "${OUTPUT_DIR}" "${ALLURE_DIR}"
 
-python -m pabot \
+python -m pabot.pabot \
   --processes "${PROCESSES}" \
+  --testlevelsplit \
   --outputdir "${OUTPUT_DIR}" \
   --listener "allure_robotframework:${ALLURE_DIR}" \
   --loglevel INFO \
