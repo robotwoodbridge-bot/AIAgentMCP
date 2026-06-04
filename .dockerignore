@@ -1,0 +1,30 @@
+# Virtual environment — large, contains symlinks that break tar archiving
+.venv/
+
+# Test output — not needed in the image
+results/
+reports/
+
+# Terraform state and provider cache
+infra/terraform/.terraform/
+infra/terraform/terraform.tfstate
+infra/terraform/terraform.tfstate.backup
+
+# IDE and tool config
+.vscode/
+.claude/
+.claude.json
+.claudeignore
+
+# Git
+.git/
+
+# macOS
+.DS_Store
+
+# Pabot run cache
+.pabotsuitenames
+
+# Logs
+*.log
+playwright-log.txt
