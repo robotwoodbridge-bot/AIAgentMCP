@@ -42,7 +42,7 @@ open results/report.html              # Robot Framework HTML report
 ## Project Structure
 
 ```
-qa-lab/
+robotkali/
 ├── config/settings.yaml        # Central config — environments, browser, timeouts, test data
 ├── tests/smoke/                # Smoke test suites
 ├── keywords/
@@ -54,7 +54,7 @@ qa-lab/
 │   ├── docker-compose.yml      # Selenium Grid, Loki, Grafana, test-runner services
 │   ├── Dockerfile.runner       # Container image for CI-style execution
 │   └── loki-config.yaml        # Loki log aggregation config
-├── ci/qa-pipeline.yml          # GitHub Actions workflow — copy to .github/workflows/
+├── ci/azure-pipelines.yml      # Azure Pipelines workflow — register under Pipelines → New Pipeline
 ├── utils/
 │   ├── run_parallel.sh         # Pabot parallel runner wrapper (local, no Docker)
 │   └── run_iac.sh              # Playwright runner inside Terraform IaC container
@@ -72,7 +72,7 @@ qa-lab/
 - `loki.enabled`: flip to true when the Docker observability stack is running
 
 **Environments defined in settings.yaml:**
-- `staging`: https://rahulshettyacademy.com
+- `staging`: https://practice.expandtesting.com
 - `production`: separate URLs configured in the yaml
 
 ## Docker Stack
@@ -93,11 +93,11 @@ The `test-runner` service only starts with `--profile run`.
 
 ## CI/CD
 
-GitHub Actions pipeline at `ci/qa-pipeline.yml` — copy to `.github/workflows/qa-pipeline.yml` to activate.
+Azure Pipelines at `ci/azure-pipelines.yml` — register it under **Pipelines → New Pipeline → Azure Repos Git** in the ADO portal.
 
-- Triggers on push/PR to `main` or `develop`, plus manual dispatch
+- Triggers on push/PR to `main` or `develop`, plus manual queue
 - Runs `pabot` with 4 workers in headless mode
-- Publishes Allure HTML report to GitHub Pages (main branch only)
+- Publishes Allure HTML report as a downloadable pipeline artifact
 - Uploads browser traces as artifacts on failure
 
 ## Stack
