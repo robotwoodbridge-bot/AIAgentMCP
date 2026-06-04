@@ -14,6 +14,10 @@
 
 set -euo pipefail
 
+# Always operate from the repo root regardless of where the script is called from
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+
 SUITE=${1:-""}          # optional subfolder under tests/ (omit or use "smoke", not ".")
 PROCESSES=${2:-4}       # number of parallel workers
 OUTPUT_DIR="results"
