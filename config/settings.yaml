@@ -91,3 +91,20 @@ timeouts:
   element_timeout: 10
   page_load: 30
   api_response: 15
+
+# ---------------------------------------------------------------------------
+# Security scanning (Phase 3 — OWASP ZAP / Nikto / Nmap via Docker)
+# ---------------------------------------------------------------------------
+security:
+  enabled: true
+  # Phase 3: promote to HIGH once a clean baseline is established
+  fail_on_severity: MEDIUM        # LOW | MEDIUM | HIGH | CRITICAL
+  output_dir: results/security
+  zap:
+    scan_type: baseline            # Phase 4: promote to "full" for pre-release runs
+    ajax_spider: false             # enable for SPA targets
+    timeout_minutes: 10
+  nikto:
+    flags: "-Tuning 1234567890ab"  # run all default Nikto test groups
+  nmap:
+    flags: "-sC -sV --open"        # default script + version scan, open ports only
