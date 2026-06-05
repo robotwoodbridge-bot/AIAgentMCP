@@ -136,3 +136,11 @@ stages:
               targetPath: "$(outputDir)"
               artifact: "security-rf-logs-${{ parameters.environment }}"
               publishLocation: pipeline
+
+          # ------------------------------------------------------------------
+          # Email notification on any test failure — sends log.html
+          # ------------------------------------------------------------------
+          - template: templates/notify-on-failure.yml
+            parameters:
+              pipelineName: "Security Scan — ${{ parameters.environment }}"
+              artifactDir: $(outputDir)

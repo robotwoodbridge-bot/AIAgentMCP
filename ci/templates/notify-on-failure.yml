@@ -1,0 +1,92 @@
+# =============================================================================
+# Reusable step template — email notification on any test failure
+# =============================================================================
+# Sends log.html as an attachment to robotwoodbridge@gmail.com via Gmail SMTP.
+#
+# Prerequisites — add these as secret pipeline variables in Azure DevOps:
+#   GMAIL_USER         → robotwoodbridge@gmail.com
+#   GMAIL_APP_PASSWORD → Gmail App Password (NOT your account password)
+#                        Generate at: myaccount.google.com/apppasswords
+#
+# Usage:
+#   - template: templates/notify-on-failure.yml
+#     parameters:
+#       pipelineName: "QA Smoke Suite"
+#       artifactDir:  $(RESULTS_DIR)
+# =============================================================================
+
+parameters:
+  - name: pipelineName
+    type: string
+    default: QA Pipeline
+  - name: artifactDir
+    type: string
+    default: $(Build.SourcesDirectory)/results
+
+steps:
+  - bash: |
+      set -euo pipefail
+
+      RECIPIENT="robotwoodbridge@gmail.com"
+      SUBJECT="❌ [FAILED] ${{ parameters.pipelineName }} — Build #$(Build.BuildNumber)"
+      LOG_FILE="${{ parameters.artifactDir }}/log.html"
+      BUILD_URL="$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)"
+
+      echo "Sending failure notification to ${RECIPIENT}..."
+
+      python3 - <<PYEOF
+      import smtplib, os, sys
+      from email.mime.multipart import MIMEMultipart
+      from email.mime.text import MIMEText
+      from email.mime.base import MIMEBase
+      from email import encoders
+
+      sender    = os.environ["GMAIL_USER"]
+      password  = os.environ["GMAIL_APP_PASSWORD"]
+      recipient = "${RECIPIENT}"
+      log_file  = "${LOG_FILE}"
+      build_url = "${BUILD_URL}"
+
+      # ---- message body ----
+      body = f"""A test failure was detected in the robotkali pipeline.
+
+      Pipeline : ${{ parameters.pipelineName }}
+      Branch   : $(Build.SourceBranchName)
+      Build    : #$(Build.BuildNumber)
+      Commit   : $(Build.SourceVersion)
+      Triggered: $(Build.RequestedFor)
+      View run : {build_url}
+
+      The Robot Framework log (log.html) is attached for full details.
+      """
+
+      msg = MIMEMultipart()
+      msg["From"]    = sender
+      msg["To"]      = recipient
+      msg["Subject"] = "${SUBJECT}"
+      msg.attach(MIMEText(body, "plain"))
+
+      # ---- attach log.html ----
+      if os.path.exists(log_file):
+          with open(log_file, "rb") as f:
+              part = MIMEBase("application", "octet-stream")
+              part.set_payload(f.read())
+              encoders.encode_base64(part)
+              part.add_header("Content-Disposition", 'attachment; filename="log.html"')
+              msg.attach(part)
+          print(f"Attaching {log_file}")
+      else:
+          print(f"WARNING: log.html not found at {log_file} — sending without attachment")
+
+      # ---- send via Gmail SMTP SSL ----
+      with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+          server.login(sender, password)
+          server.sendmail(sender, recipient, msg.as_string())
+
+      print(f"Notification sent to {recipient}")
+      PYEOF
+    displayName: "Send failure notification email"
+    condition: failed()
+    env:
+      GMAIL_USER: $(GMAIL_USER)
+      GMAIL_APP_PASSWORD: $(GMAIL_APP_PASSWORD)
