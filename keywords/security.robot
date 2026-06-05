@@ -50,7 +50,8 @@ Run ZAP Baseline Scan
     Log Step    Starting ZAP baseline scan → ${target_url}
     ${result}=    Run Process
     ...    docker    run    --rm
-    ...    -v    ${CURDIR}/../${SECURITY_OUTPUT_DIR}:/zap/wrk
+    ...    --user    root
+    ...    -v    ${CURDIR}/../${SECURITY_OUTPUT_DIR}:/zap/wrk:rw
     ...    ${ZAP_IMAGE}
     ...    zap-baseline.py
     ...    -t    ${target_url}
@@ -68,7 +69,8 @@ Parse ZAP Report
     ${exists}=    Run Keyword And Return Status    File Should Exist    ${report_path}
     IF    not ${exists}
         Log    [WARN] [SECURITY] ZAP report not found at ${report_path}    level=WARN    console=True
-        RETURN    ${EMPTY LIST}
+        ${empty}=    Create List
+        RETURN    ${empty}
     END
     ${raw}=    Get File    ${report_path}
     ${data}=   Evaluate    json.loads($raw)    json
@@ -105,7 +107,8 @@ Run Nikto Scan
     Log Step    Starting Nikto scan → ${target_url}
     ${result}=    Run Process
     ...    docker    run    --rm
-    ...    -v    ${CURDIR}/../${SECURITY_OUTPUT_DIR}:/tmp/nikto
+    ...    --user    root
+    ...    -v    ${CURDIR}/../${SECURITY_OUTPUT_DIR}:/tmp/nikto:rw
     ...    ${NIKTO_IMAGE}
     ...    -h    ${target_url}
     ...    -Format    json
@@ -124,7 +127,8 @@ Parse Nikto Report
     ${exists}=    Run Keyword And Return Status    File Should Exist    ${report_path}
     IF    not ${exists}
         Log    [WARN] [SECURITY] Nikto report not found at ${report_path}    level=WARN    console=True
-        RETURN    ${EMPTY LIST}
+        ${empty}=    Create List
+        RETURN    ${empty}
     END
     ${raw}=    Get File    ${report_path}
     ${data}=   Evaluate    json.loads($raw)    json
@@ -152,9 +156,10 @@ Run Nmap Scan
     Log Step    Starting Nmap scan → ${host}
     ${result}=    Run Process
     ...    docker    run    --rm
-    ...    -v    ${CURDIR}/../${SECURITY_OUTPUT_DIR}:/tmp/nmap
+    ...    --user    root
+    ...    -v    ${CURDIR}/../${SECURITY_OUTPUT_DIR}:/tmp/nmap:rw
     ...    ${NMAP_IMAGE}
-    ...    -sC    -sV    --open
+    ...    -sT    -sV    --open
     ...    -oX    /tmp/nmap/nmap-report.xml
     ...    ${host}
     ...    timeout=300
@@ -169,7 +174,8 @@ Parse Nmap Report
     ${exists}=    Run Keyword And Return Status    File Should Exist    ${report_path}
     IF    not ${exists}
         Log    [WARN] [SECURITY] Nmap report not found at ${report_path}    level=WARN    console=True
-        RETURN    ${EMPTY LIST}
+        ${empty}=    Create List
+        RETURN    ${empty}
     END
     ${raw}=    Get File    ${report_path}
     ${findings}=    Create List
