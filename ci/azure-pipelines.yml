@@ -152,6 +152,14 @@ stages:
               artifact: browser-traces-smoke
               publishLocation: pipeline
 
+          # ------------------------------------------------------------------
+          # 11. Email notification on any test failure — sends log.html
+          # ------------------------------------------------------------------
+          - template: templates/notify-on-failure.yml
+            parameters:
+              pipelineName: "QA Smoke Suite"
+              artifactDir: $(RESULTS_DIR)
+
   # --------------------------------------------------------------------------
   # Report Stage — generate Allure HTML from the results artifact
   # --------------------------------------------------------------------------
