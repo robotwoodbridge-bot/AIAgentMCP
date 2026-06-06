@@ -7,7 +7,8 @@
 #
 # What it does:
 #   1. Checks out the repo
-#   2. Installs Terraform
+#   2. Pins Terraform 1.8.5 via direct install (no TerraformTaskV4 — it
+#      crashes with provider:local / no cloud backend)
 #   3. terraform init + apply  →  spins up playwright-runner, Loki, Grafana
 #   4. Runs the Robot Framework smoke suite inside the container via docker exec
 #   5. terraform destroy       →  tears down all containers (always runs)
@@ -51,34 +52,36 @@ stages:
           - checkout: self
 
           # ------------------------------------------------------------------
-          # 2. Install Terraform (pinned for reproducibility)
+          # 2. Pin Terraform version via tfenv / direct install
+          #    ubuntu-latest ships Terraform, but we pin to 1.8.5 for
+          #    reproducibility. TerraformTaskV4 is not used because it
+          #    requires a cloud backend provider and crashes on local state.
           # ------------------------------------------------------------------
-          - task: TerraformInstaller@1
-            displayName: Install Terraform 1.8.5
-            inputs:
-              terraformVersion: "1.8.5"
+          - bash: |
+              TF_VERSION="1.8.5"
+              INSTALLED=$(terraform version -json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['terraform_version'])" 2>/dev/null || echo "none")
+              if [ "$INSTALLED" = "$TF_VERSION" ]; then
+                echo "Terraform ${TF_VERSION} already present — skipping install."
+              else
+                echo "Installing Terraform ${TF_VERSION}..."
+                curl -fsSL "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip" -o /tmp/terraform.zip
+                unzip -q /tmp/terraform.zip -d /tmp
+                sudo mv /tmp/terraform /usr/local/bin/terraform
+              fi
+              terraform version
+            displayName: "Install Terraform 1.8.5"
 
           # ------------------------------------------------------------------
           # 3. terraform init
           # ------------------------------------------------------------------
-          - task: TerraformTaskV4@4
-            displayName: Terraform init
-            inputs:
-              provider: local
-              command: init
-              workingDirectory: $(TF_DIR)
+          - bash: terraform -chdir=$(TF_DIR) init -input=false
+            displayName: "Terraform init"
 
           # ------------------------------------------------------------------
           # 4. terraform apply — spin up playwright-runner + Loki + Grafana
-          #    -auto-approve skips the interactive prompt in CI
           # ------------------------------------------------------------------
-          - task: TerraformTaskV4@4
-            displayName: Terraform apply (start IaC stack)
-            inputs:
-              provider: local
-              command: apply
-              workingDirectory: $(TF_DIR)
-              commandOptions: "-auto-approve"
+          - bash: terraform -chdir=$(TF_DIR) apply -auto-approve -input=false
+            displayName: "Terraform apply (start IaC stack)"
 
           # ------------------------------------------------------------------
           # 5. Wait for the playwright-runner container to be running
@@ -116,14 +119,9 @@ stages:
           # 7. terraform destroy — ALWAYS runs so containers never leak
           #    between pipeline runs
           # ------------------------------------------------------------------
-          - task: TerraformTaskV4@4
-            displayName: Terraform destroy (tear down IaC stack)
+          - bash: terraform -chdir=$(TF_DIR) destroy -auto-approve -input=false
+            displayName: "Terraform destroy (tear down IaC stack)"
             condition: always()
-            inputs:
-              provider: local
-              command: destroy
-              workingDirectory: $(TF_DIR)
-              commandOptions: "-auto-approve"
 
           # ------------------------------------------------------------------
           # 8. Publish Allure results
