@@ -1,9 +1,7 @@
 ### Test the Agents - Prompt ###
-
 Act as the QE Lead Agent.
 
 Review this feature:
-
 "As a payroll administrator,
 I can bulk import employees
 from CSV."
@@ -15,7 +13,6 @@ Delegate work to:
 - Observability Specialist
 
 Provide a consolidated testing strategy.
-
 
 ### Run All Playwright tests - Prompt ###
 Act as the QE Lead Agent
@@ -29,4 +26,20 @@ Do not run tests in headless mode; I like to see the steps.
 Chrome,
 Firefox,
 
-Tear down when done:  using the following command `cd infra/terraform && terraform destroy -auto-approve`
+Tear down when done:  using the following command 
+`cd infra/terraform && terraform destroy -auto-approve`
+
+**Test Case write to Azure via MCP**
+Act as the QE Lead Agent.
+
+Review this requirement and generate manual test cases with steps for automation later.
+https://dev.azure.com/robotwoodbridge/robotkali/_workitems/edit/2/
+
+The environment is:
+https://practice.expandtesting.com
+
+Delegate work 
+- quality engineer Specialist
+and other sub-agents
+
+Write the test to Azure test plan modules via ADO MCP
