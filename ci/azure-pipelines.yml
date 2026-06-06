@@ -7,7 +7,8 @@
 #
 # What it does:
 #   1. Checks out the repo
-#   2. Installs Terraform via HashiCorp apt repo (no Marketplace extension needed)
+#   2. Pins Terraform 1.8.5 via direct install (no TerraformTaskV4 — it
+#      crashes with provider:local / no cloud backend)
 #   3. terraform init + apply  →  spins up playwright-runner, Loki, Grafana
 #   4. Runs the Robot Framework smoke suite inside the container via docker exec
 #   5. terraform destroy       →  tears down all containers (always runs)
@@ -52,31 +53,34 @@ stages:
           - checkout: self
 
           # ------------------------------------------------------------------
-          # 2. Install Terraform from HashiCorp apt repo — no Marketplace
-          #    extension required, works on any ubuntu-latest agent.
+          # 2. Pin Terraform version — skips install if already correct version.
+          #    TerraformTaskV4 is not used (crashes with provider:local).
+          #    Version controlled by TF_VERSION pipeline variable.
           # ------------------------------------------------------------------
-          - script: |
-              curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
-              echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
-                | sudo tee /etc/apt/sources.list.d/hashicorp.list
-              sudo apt-get update -qq && sudo apt-get install -y terraform=$(TF_VERSION)-1
+          - bash: |
+              INSTALLED=$(terraform version -json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['terraform_version'])" 2>/dev/null || echo "none")
+              if [ "$INSTALLED" = "$(TF_VERSION)" ]; then
+                echo "Terraform $(TF_VERSION) already present — skipping install."
+              else
+                echo "Installing Terraform $(TF_VERSION)..."
+                curl -fsSL "https://releases.hashicorp.com/terraform/$(TF_VERSION)/terraform_$(TF_VERSION)_linux_amd64.zip" -o /tmp/terraform.zip
+                unzip -q /tmp/terraform.zip -d /tmp
+                sudo mv /tmp/terraform /usr/local/bin/terraform
+              fi
               terraform version
-            displayName: Install Terraform $(TF_VERSION)
+            displayName: "Install Terraform $(TF_VERSION)"
 
           # ------------------------------------------------------------------
           # 3. terraform init
           # ------------------------------------------------------------------
-          - script: terraform init
-            displayName: Terraform init
-            workingDirectory: $(TF_DIR)
+          - bash: terraform -chdir=$(TF_DIR) init -input=false
+            displayName: "Terraform init"
 
           # ------------------------------------------------------------------
           # 4. terraform apply — spin up playwright-runner + Loki + Grafana
-          #    -auto-approve skips the interactive prompt in CI
           # ------------------------------------------------------------------
-          - script: terraform apply -auto-approve
-            displayName: Terraform apply (start IaC stack)
-            workingDirectory: $(TF_DIR)
+          - bash: terraform -chdir=$(TF_DIR) apply -auto-approve -input=false
+            displayName: "Terraform apply (start IaC stack)"
 
           # ------------------------------------------------------------------
           # 5. Wait for the playwright-runner container to be running
@@ -114,9 +118,8 @@ stages:
           # 7. terraform destroy — ALWAYS runs so containers never leak
           #    between pipeline runs
           # ------------------------------------------------------------------
-          - script: terraform destroy -auto-approve
-            displayName: Terraform destroy (tear down IaC stack)
-            workingDirectory: $(TF_DIR)
+          - bash: terraform -chdir=$(TF_DIR) destroy -auto-approve -input=false
+            displayName: "Terraform destroy (tear down IaC stack)"
             condition: always()
 
           # ------------------------------------------------------------------

@@ -201,3 +201,6 @@ __marimo__/
 
 # Temp
 tempCodeRunnerFile.py
+
+# AI MD files not yet ready, ignore for now until I scrub them
+ai/*
