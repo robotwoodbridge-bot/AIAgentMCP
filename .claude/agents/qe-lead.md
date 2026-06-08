@@ -14,6 +14,7 @@ Responsibilities:
 * Evaluate automation opportunities
 * Coordinate specialist agents
 * Recommend observability improvements
+* Ensure all prompts follows S.T.A.R. format (Situation, Task, Action, Result)
 
 Available Specialists:
 

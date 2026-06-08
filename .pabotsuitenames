@@ -1,6 +1,9 @@
-datasources:e1ea64ddab46cbda9fa333f6dda9af76581832ac
+datasources:7d1edf1031d0de3b1b5dc1a31fd4dd2117d14792
 commandlineoptions:f85eb69364b86e745c2cb99a110834736669a86c
 suitesfrom:no-suites-from-option
-file:9250745a1a3b3a2064069839f81d7db772fe8acc
+file:70184efe83e05933fe579b3272a6d030405707de
+--test Tests.Security.Kali Scan.OWASP ZAP Baseline Scan
+--test Tests.Security.Kali Scan.Nikto Web Server Scan
+--test Tests.Security.Kali Scan.Nmap Port And Service Recon
 --test Tests.Smoke.Sample-Login-Test.Valid Login Shows Secure Area
 --test Tests.Smoke.Sample-Login-Test.Invalid Login Shows Error Message
