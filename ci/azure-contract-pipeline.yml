@@ -7,7 +7,7 @@
 #
 # HOW TO ACTIVATE:
 #   Pipelines → New Pipeline → Azure Repos Git → robotkali
-#   → Existing Azure Pipelines YAML file → ci/azure-pipelines-contract.yml
+#   → Existing Azure Pipelines YAML file → ci/azure-contract-pipeline.yml
 # =============================================================================
 
 trigger:
@@ -19,7 +19,7 @@ trigger:
     include:
       - tests/api/**
       - keywords/api_keywords.robot
-      - ci/azure-pipelines-contract.yml
+      - ci/azure-contract-pipeline.yml
 
 pr:
   branches:
