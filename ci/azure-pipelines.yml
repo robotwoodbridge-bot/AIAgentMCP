@@ -32,6 +32,7 @@ pool:
   vmImage: ubuntu-latest
 
 variables:
+  TF_VERSION: "1.8.5"
   TF_DIR: $(Build.SourcesDirectory)/infra/terraform
   RESULTS_DIR: $(Build.SourcesDirectory)/results
   ALLURE_DIR: $(Build.SourcesDirectory)/results/allure-results
@@ -52,24 +53,22 @@ stages:
           - checkout: self
 
           # ------------------------------------------------------------------
-          # 2. Pin Terraform version via tfenv / direct install
-          #    ubuntu-latest ships Terraform, but we pin to 1.8.5 for
-          #    reproducibility. TerraformTaskV4 is not used because it
-          #    requires a cloud backend provider and crashes on local state.
+          # 2. Pin Terraform version — skips install if already correct version.
+          #    TerraformTaskV4 is not used (crashes with provider:local).
+          #    Version controlled by TF_VERSION pipeline variable.
           # ------------------------------------------------------------------
           - bash: |
-              TF_VERSION="1.8.5"
               INSTALLED=$(terraform version -json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['terraform_version'])" 2>/dev/null || echo "none")
-              if [ "$INSTALLED" = "$TF_VERSION" ]; then
-                echo "Terraform ${TF_VERSION} already present — skipping install."
+              if [ "$INSTALLED" = "$(TF_VERSION)" ]; then
+                echo "Terraform $(TF_VERSION) already present — skipping install."
               else
-                echo "Installing Terraform ${TF_VERSION}..."
-                curl -fsSL "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip" -o /tmp/terraform.zip
+                echo "Installing Terraform $(TF_VERSION)..."
+                curl -fsSL "https://releases.hashicorp.com/terraform/$(TF_VERSION)/terraform_$(TF_VERSION)_linux_amd64.zip" -o /tmp/terraform.zip
                 unzip -q /tmp/terraform.zip -d /tmp
                 sudo mv /tmp/terraform /usr/local/bin/terraform
               fi
               terraform version
-            displayName: "Install Terraform 1.8.5"
+            displayName: "Install Terraform $(TF_VERSION)"
 
           # ------------------------------------------------------------------
           # 3. terraform init
