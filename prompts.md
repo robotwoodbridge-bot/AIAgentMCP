@@ -43,3 +43,9 @@ Delegate work
 and other sub-agents
 
 Write the test to Azure test plan modules via ADO MCP
+
+**Review Test Strategy**
+Review this quality engineering testing strategy. Compare it against industry standards and best practices. Be direct — flag gaps, weaknesses, and specific improvements I should make. Also assess how practical it is for everyday team usage."
+
+**Email to stakeholder about upcoming release**
+Write a professional email to a stakeholder. Keep it concise — no more than 3 short paragraphs, with a professional but direct tone. I'm a Quality Engineering Leader on an HR/Payroll SaaS project, writing to a business stakeholder to communicate an upcoming release that includes a critical payroll fix.

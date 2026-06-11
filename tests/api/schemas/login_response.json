@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "EcomBasic Login Response Contract",
+  "type": "object",
+  "required": ["message", "token", "userId"],
+  "additionalProperties": true,
+  "properties": {
+    "message": {
+      "type": "string",
+      "const": "Login Successfully"
+    },
+    "token": {
+      "type": "string",
+      "minLength": 1
+    },
+    "userId": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

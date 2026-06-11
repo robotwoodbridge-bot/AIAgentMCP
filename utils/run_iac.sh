@@ -37,13 +37,23 @@ if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
   exit 1
 fi
 
+# Resolve the suite argument: a directory under tests/ wins; otherwise fall
+# back to treating it as a Robot Framework tag (e.g. "contract" → --include contract)
 TEST_PATH="tests/"
-[ -n "${SUITE}" ] && TEST_PATH="tests/${SUITE}/"
+INCLUDE_ARGS=()
+if [ -n "${SUITE}" ]; then
+  if [ -d "tests/${SUITE}" ]; then
+    TEST_PATH="tests/${SUITE}/"
+  else
+    INCLUDE_ARGS=(--include "${SUITE}")
+  fi
+fi
 
 echo "============================================================"
 echo "  QA Lab — Playwright IaC Runner"
 echo "  Container : ${CONTAINER}"
 echo "  Suite     : ${TEST_PATH}"
+[ ${#INCLUDE_ARGS[@]} -gt 0 ] && echo "  Tag       : ${SUITE}"
 echo "  Headless  : ${HEADLESS}"
 echo "============================================================"
 
@@ -57,12 +67,14 @@ if [ "${HEADLESS}" = "False" ]; then
     --variable HEADLESS_MODE:False \
     --variable BROWSER_TIMEOUT:30s \
     --listener allure_robotframework:results/allure-results \
+    ${INCLUDE_ARGS[@]+"${INCLUDE_ARGS[@]}"} \
     "${TEST_PATH}"
 else
   docker exec "${CONTAINER}" python -m robot \
     --outputdir results \
     --variable HEADLESS_MODE:True \
     --listener allure_robotframework:results/allure-results \
+    ${INCLUDE_ARGS[@]+"${INCLUDE_ARGS[@]}"} \
     "${TEST_PATH}"
 fi
 
