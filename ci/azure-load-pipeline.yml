@@ -1,0 +1,130 @@
+# =============================================================================
+# Azure Pipelines — Load Test Pipeline (k6)
+# =============================================================================
+# HOW TO ACTIVATE:
+#   Pipelines → New Pipeline → Azure Repos Git → robotkali
+#   → Existing Azure Pipelines YAML file → ci/azure-load-pipeline.yml
+#
+# What it does:
+#   1. Installs k6 and runs tests/performance/k6/login_load_test.js with the
+#      selected profile. k6 thresholds (error rate, p95 latency, success
+#      rate) gate the run — any breach fails the pipeline.
+#   2. Publishes the JSON summary as a pipeline artifact for trend comparison.
+#   3. Emails a notification on failure.
+#
+# Triggering policy:
+#   - NO automatic trigger on push/PR — load tests generate sustained traffic
+#     and must not fire on every commit, especially against the shared public
+#     staging site.
+#   - Manual queue with a profile picker (smoke / load / stress).
+#   - Weekly scheduled "load" profile run for capacity trend data.
+#
+# Point BASE_URL at an environment you own before queueing the stress profile.
+# =============================================================================
+
+trigger: none
+
+pr: none
+
+schedules:
+  # Weekly load-profile run, Sunday 03:00 UTC on develop — low-traffic window,
+  # keeps a capacity trend without hammering the shared staging site.
+  - cron: "0 3 * * 0"
+    displayName: Weekly load baseline
+    branches:
+      include:
+        - develop
+    always: true
+
+parameters:
+  - name: profile
+    displayName: Load profile
+    type: string
+    default: smoke
+    values:
+      - smoke
+      - load
+      - stress
+
+  - name: baseUrl
+    displayName: Target base URL
+    type: string
+    default: https://practice.expandtesting.com
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  k6Version: "0.57.0"
+  resultsDir: "$(Build.SourcesDirectory)/results/k6"
+  # Scheduled runs always use the load profile; manual runs use the picker.
+  ${{ if eq(variables['Build.Reason'], 'Schedule') }}:
+    effectiveProfile: load
+  ${{ else }}:
+    effectiveProfile: ${{ parameters.profile }}
+
+stages:
+  - stage: LoadTest
+    displayName: "Load Test (k6)"
+    jobs:
+      - job: RunK6
+        displayName: "k6 login load test"
+        timeoutInMinutes: 20
+
+        steps:
+          - checkout: self
+            displayName: "Checkout repository"
+
+          # ------------------------------------------------------------------
+          # Install a pinned k6 version for reproducible numbers
+          # ------------------------------------------------------------------
+          - bash: |
+              set -euo pipefail
+              K6_VERSION="$(k6Version)"
+              echo "Installing k6 v${K6_VERSION}..."
+              curl -fsSL "https://github.com/grafana/k6/releases/download/v${K6_VERSION}/k6-v${K6_VERSION}-linux-amd64.tar.gz" -o /tmp/k6.tar.gz
+              tar -xzf /tmp/k6.tar.gz -C /tmp
+              sudo mv "/tmp/k6-v${K6_VERSION}-linux-amd64/k6" /usr/local/bin/k6
+              k6 version
+            displayName: "Install k6 $(k6Version)"
+
+          # ------------------------------------------------------------------
+          # Run the load test — k6 exits non-zero if any threshold is
+          # breached, which fails this step and the pipeline
+          # ------------------------------------------------------------------
+          - bash: |
+              set -euo pipefail
+              # Undefined ADO variables pass through as the literal '$(VAR)' —
+              # unset those so the script's built-in defaults apply instead.
+              if [[ "${LOGIN_USERNAME:-}" == '$('* ]]; then unset LOGIN_USERNAME; fi
+              if [[ "${LOGIN_PASSWORD:-}" == '$('* ]]; then unset LOGIN_PASSWORD; fi
+              mkdir -p $(resultsDir)
+              k6 run \
+                -e PROFILE=$(effectiveProfile) \
+                -e BASE_URL="${{ parameters.baseUrl }}" \
+                --summary-export "$(resultsDir)/login-$(effectiveProfile)-$(Build.BuildNumber).json" \
+                tests/performance/k6/login_load_test.js
+            displayName: "Run k6 ($(effectiveProfile) profile)"
+            env:
+              LOGIN_USERNAME: $(LOGIN_USERNAME)
+              LOGIN_PASSWORD: $(LOGIN_PASSWORD)
+
+          # ------------------------------------------------------------------
+          # Publish the JSON summary — compare across builds for trends
+          # ------------------------------------------------------------------
+          - task: PublishPipelineArtifact@1
+            displayName: "Publish k6 summary"
+            condition: always()
+            inputs:
+              targetPath: "$(resultsDir)"
+              artifact: "k6-summary-$(effectiveProfile)"
+              publishLocation: pipeline
+
+          # ------------------------------------------------------------------
+          # Email notification on threshold breach
+          # (no log.html for k6 — the template sends without attachment)
+          # ------------------------------------------------------------------
+          - template: templates/notify-on-failure.yml
+            parameters:
+              pipelineName: "k6 Load Test ($(effectiveProfile))"
+              artifactDir: $(resultsDir)

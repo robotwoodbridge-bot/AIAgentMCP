@@ -19,6 +19,10 @@ cd infra/terraform && terraform apply -auto-approve
 | Via script                 | `./utils/run_iac.sh smoke`           | Docker container |
 | Via script                 | `./utils/run_iac.sh smoke --headed`  | Docker container |
 
+./utils/run_k6.sh           # smoke — 2 VUs, 30s sanity check
+./utils/run_k6.sh load      # load — ramp to 5 VUs, sustain 2m
+./utils/run_k6.sh stress    # stress — ramp to 15 VUs, sustain 2m
+
 **IaC Container Headless fastest**
 docker exec qa-playwright-runner python -m robot \
   --outputdir results --variable HEADLESS_MODE:True tests/
