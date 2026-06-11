@@ -1,0 +1,137 @@
+# =============================================================================
+# Azure Pipelines — Performance Test Pipeline (Robot Framework)
+# =============================================================================
+# HOW TO ACTIVATE:
+#   Pipelines → New Pipeline → Azure Repos Git → robotkali
+#   → Existing Azure Pipelines YAML file → ci/azure-performance-pipeline.yml
+#
+# What it does:
+#   1. Runs the browser-level performance suite (tests/performance/) headless —
+#      page-load budgets (Navigation Timing), login transaction SLA, and the
+#      repeated-sample p90 baseline.
+#   2. Publishes Allure results and RF logs as pipeline artifacts.
+#   3. Emails log.html on failure.
+#
+# Runs nightly (for trend data) and on pushes that touch performance-related
+# files. Performance budgets can be tuned per-run via the parameters below
+# without editing the suite.
+# =============================================================================
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+  paths:
+    include:
+      - tests/performance/**
+      - pages/**
+      - keywords/**
+      - data/test_data.robot
+      - ci/azure-performance-pipeline.yml
+
+pr:
+  branches:
+    include:
+      - main
+
+schedules:
+  # Nightly run at 02:00 UTC on develop — even with no code changes, so the
+  # baseline trend keeps accumulating data points.
+  - cron: "0 2 * * *"
+    displayName: Nightly performance baseline
+    branches:
+      include:
+        - develop
+    always: true
+
+parameters:
+  - name: loginSlaMs
+    displayName: Login SLA (ms)
+    type: number
+    default: 5000
+
+  - name: baselineIterations
+    displayName: Baseline iterations
+    type: number
+    default: 5
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  pythonVersion: "3.12"
+  outputDir: "$(Build.SourcesDirectory)/results"
+  allureDir: "$(Build.SourcesDirectory)/results/allure-results"
+
+stages:
+  - stage: PerformanceTest
+    displayName: "Performance Suite (Robot Framework)"
+    jobs:
+      - job: RunPerformanceSuite
+        displayName: "Browser performance budgets"
+        timeoutInMinutes: 30
+
+        steps:
+          - checkout: self
+            displayName: "Checkout repository"
+
+          - task: UsePythonVersion@0
+            displayName: "Use Python $(pythonVersion)"
+            inputs:
+              versionSpec: "$(pythonVersion)"
+              addToPath: true
+
+          - script: pip install -r requirements.txt
+            displayName: "Install Python dependencies"
+
+          - script: |
+              playwright install --with-deps chromium
+              python -m Browser.entry init
+            displayName: "Install Playwright browsers + Browser library node deps"
+
+          - script: mkdir -p $(outputDir) $(allureDir)
+            displayName: "Create output directories"
+
+          - script: |
+              python -m robot \
+                --outputdir $(outputDir) \
+                --variable HEADLESS_MODE:True \
+                --variable LOGIN_SLA_MS:${{ parameters.loginSlaMs }} \
+                --variable BASELINE_ITERATIONS:${{ parameters.baselineIterations }} \
+                --listener allure_robotframework:$(allureDir) \
+                --loglevel INFO \
+                --name "Performance Suite" \
+                tests/performance/
+            displayName: "Run performance suite"
+
+          # ------------------------------------------------------------------
+          # Publish Allure results
+          # ------------------------------------------------------------------
+          - task: PublishPipelineArtifact@1
+            displayName: "Publish Allure results"
+            condition: always()
+            inputs:
+              targetPath: "$(allureDir)"
+              artifact: "allure-results-performance"
+              publishLocation: pipeline
+
+          # ------------------------------------------------------------------
+          # Publish RF logs — log.html contains the [PERF] metric lines that
+          # form the baseline trail across nightly runs
+          # ------------------------------------------------------------------
+          - task: PublishPipelineArtifact@1
+            displayName: "Publish RF logs"
+            condition: always()
+            inputs:
+              targetPath: "$(outputDir)"
+              artifact: "robot-logs-performance"
+              publishLocation: pipeline
+
+          # ------------------------------------------------------------------
+          # Email notification on any test failure — sends log.html
+          # ------------------------------------------------------------------
+          - template: templates/notify-on-failure.yml
+            parameters:
+              pipelineName: "Performance Suite"
+              artifactDir: $(outputDir)
