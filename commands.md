@@ -18,6 +18,8 @@ cd infra/terraform && terraform apply -auto-approve
 | Local dev (fast iteration) | `python -m robot tests/`             | Your Mac         |
 | Via script                 | `./utils/run_iac.sh smoke`           | Docker container |
 | Via script                 | `./utils/run_iac.sh smoke --headed`  | Docker container |
+| Via script                 | `./utils/run_parallels smoke 4`      | local browsers 4 parallels proc |
+| Via script                 | `./utils/run_parallels MVP 2`        | local browsers 2 parallels proc |
 
 ./utils/run_k6.sh           # smoke — 2 VUs, 30s sanity check
 ./utils/run_k6.sh load      # load — ramp to 5 VUs, sustain 2m

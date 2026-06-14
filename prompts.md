@@ -14,6 +14,28 @@ Delegate work to:
 
 Provide a consolidated testing strategy.
 
+
+========================================================= 
+                 Human QE Manager
+                        │
+                        ▼
+                Claude (Orchestrator) or QE Lead Agent
+                        │
+        ┌───────────────┼────────────────┐
+        ▼               ▼                ▼
+   QA Engineer AI   Automation AI      API AI
+      (coworker)     (coworker)       (coworker)
+        │               │                │
+        ▼               ▼                ▼
+      Claude        Nemotron       Ollama / local LLM
+        │               │
+        └─────── Skills / Tools ────-────┘
+              │        │         │
+            Robot     Docker   CI/CD
+             Tests    Control  Pipeline
+======================================================== 
+
+
 ### Run All Playwright tests - Prompt ###
 Act as the QE Lead Agent
 
