@@ -18,7 +18,6 @@ reports/
 *.xml
 *.zip
 *copy*
-.github/
 playwright-log.txt
 
 

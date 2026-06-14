@@ -1,0 +1,128 @@
+# =============================================================================
+# GitHub Actions — Security Scan Pipeline
+# =============================================================================
+# Mirror of ci/azure-security-pipeline.yml.
+#
+# Phase rollout:
+#   Phase 1: Scaffold — manual trigger only
+#   Phase 2: Baseline run — continue-on-error: true (non-blocking, record findings)
+#   Phase 3: Threshold enforcement — remove continue-on-error, set failOnSeverity HIGH
+#   Phase 4: Pre-release full scan — set ZAP scan_type: "full" in settings.yaml
+#
+# Required secrets: GMAIL_USER, GMAIL_APP_PASSWORD
+# =============================================================================
+
+name: Security Scan
+
+on:
+  push:
+    branches: [main, develop]
+    # Limit automatic triggers to security-related changes.
+    # Phase 3: remove this filter to enforce the gate on every push.
+    paths:
+      - tests/security/**
+      - keywords/security.robot
+      - config/settings.yaml
+      - utils/run_security.sh
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target Environment
+        type: choice
+        default: staging
+        options:
+          - staging
+          - production
+      failOnSeverity:
+        description: Fail On Severity
+        type: choice
+        default: MEDIUM
+        options:
+          - LOW
+          - MEDIUM
+          - HIGH
+          - CRITICAL
+
+env:
+  PYTHON_VERSION: "3.12"
+  OUTPUT_DIR: ${{ github.workspace }}/results
+  SECURITY_DIR: ${{ github.workspace }}/results/security
+  # Fall back to the Azure defaults on push/PR (no dispatch inputs).
+  TARGET_ENV: ${{ inputs.environment || 'staging' }}
+  FAIL_ON_SEVERITY: ${{ inputs.failOnSeverity || 'MEDIUM' }}
+
+jobs:
+  # -------------------------------------------------------------------------
+  # continue-on-error: true during Phase 1 & 2 — non-blocking.
+  # Phase 3: remove continue-on-error from both the job and the scan step.
+  # -------------------------------------------------------------------------
+  security-scan:
+    name: Vulnerability Scans (ZAP / Nikto / Nmap)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    continue-on-error: true   # Phase 3: remove this line
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Use Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Pull scan tool images
+        run: |
+          docker pull ghcr.io/zaproxy/zaproxy:stable --quiet
+          docker pull frapsoft/nikto                  --quiet
+          docker pull instrumentisto/nmap             --quiet
+
+      - name: Create security output directory
+        run: mkdir -p "${SECURITY_DIR}"
+
+      - name: Run security scan suite
+        continue-on-error: true   # Phase 3: remove this line
+        run: |
+          python -m robot \
+            --outputdir "${OUTPUT_DIR}" \
+            --variable ENVIRONMENT:"${TARGET_ENV}" \
+            --variable FAIL_ON_SEVERITY:"${FAIL_ON_SEVERITY}" \
+            --loglevel INFO \
+            --name "Security Scan — ${TARGET_ENV}" \
+            tests/security/
+
+      - name: Publish RF report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-rf-report-${{ env.TARGET_ENV }}
+          path: ${{ env.OUTPUT_DIR }}/report.html
+
+      # Raw scan output (ZAP JSON, Nikto JSON, Nmap XML)
+      - name: Publish raw scan findings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-raw-findings-${{ env.TARGET_ENV }}
+          path: ${{ env.SECURITY_DIR }}
+
+      - name: Publish RF logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-rf-logs-${{ env.TARGET_ENV }}
+          path: ${{ env.OUTPUT_DIR }}
+
+      - name: Notify on failure
+        if: failure()
+        uses: ./.github/actions/notify-on-failure
+        with:
+          pipeline-name: "Security Scan — ${{ env.TARGET_ENV }}"
+          artifact-dir: ${{ env.OUTPUT_DIR }}
+          gmail-user: ${{ secrets.GMAIL_USER }}
+          gmail-app-password: ${{ secrets.GMAIL_APP_PASSWORD }}
