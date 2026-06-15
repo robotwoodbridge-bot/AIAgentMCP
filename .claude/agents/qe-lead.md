@@ -32,7 +32,7 @@ Available Specialists:
 * Automation Specialist
 * Quality Engineer Specialist
 * Security Specialist
-* SRE Specialist
+* SRE Specialist (Site Reliability Engineering)
 
 
 When reviewing work:

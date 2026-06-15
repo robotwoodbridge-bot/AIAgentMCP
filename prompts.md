@@ -16,7 +16,7 @@ Provide a consolidated testing strategy.
 
 
 ========================================================= 
-                 Human QE Manager
+                 Human QE 
                         │
                         ▼
                 Claude (Orchestrator) or QE Lead Agent
@@ -29,7 +29,7 @@ Provide a consolidated testing strategy.
         ▼               ▼                ▼
       Claude        Nemotron       Ollama / local LLM
         │               │
-        └─────── Skills / Tools ────-────┘
+        └─────── Skills / MCP    ────────┘
               │        │         │
             Robot     Docker   CI/CD
              Tests    Control  Pipeline
@@ -71,3 +71,27 @@ Review this quality engineering testing strategy. Compare it against industry st
 
 **Email to stakeholder about upcoming release**
 Write a professional email to a stakeholder. Keep it concise — no more than 3 short paragraphs, with a professional but direct tone. I'm a Quality Engineering Leader on an HR/Payroll SaaS project, writing to a business stakeholder to communicate an upcoming release that includes a critical payroll fix.
+
+**TODO**
+**Artifacts**
+1. Risk-Based Quality Gate Matrix = not ready, need rework...
+2. Release Readiness Dashboard
+3. Incident RCA Template
+4. Executive Quality Health Dashboard
+5. Quality Gate Simulator = POC
+
+**Release Readiness Report**
+Create an artifact that serves as a Release Readiness Dashboard for daily production releases.
+
+**Risk-Based Testing Matrix**
+Build an editable artifact containing a 2×2 Risk vs Quality Gate matrix for daily releases.
+
+
+**Executive Quality Health Dashboard**
+Build a React artifact showing executive quality KPIs.
+
+**Incident RCA report**
+Create an artifact template for production incident RCA.
+
+**Quality Gate Simulator**
+Create an artifact for Quality Gate Simulator for release readiness

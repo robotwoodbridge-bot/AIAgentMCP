@@ -12,11 +12,17 @@ Latest releases
 API references
 
 # Build and Test
-I set up Azure DevOps to build and execute this. Three Options to run
+This framework runs on **both Azure DevOps and GitHub Actions** — the pipelines are
+mirrored and kept in parity. Options to run:
 
 Run locally and with Infrastructure as Code (Iac)
 Run local browsers with pabot in parallel exec
-Clone this to your Azure DevOps, and set up Pipelines to run.
+Clone this to your Azure DevOps, and set up Pipelines to run (`ci/*.yml`).
+Push to GitHub and use the **Actions** tab — workflows in `.github/workflows/` each
+have a manual "Run workflow" button (`workflow_dispatch`).
+
+See **CI/CD** in CLAUDE.md for the full Azure ↔ GitHub Actions pipeline map and the
+required secrets (`GMAIL_USER`, `GMAIL_APP_PASSWORD`, `LOGIN_USERNAME`, `LOGIN_PASSWORD`).
 
 # Contribute#
 Please email me at guan01@gmail.com for any question or contribution.
