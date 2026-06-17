@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "EcomBasic Create Order Response Contract",
+  "type": "object",
+  "required": ["message", "orders"],
+  "additionalProperties": true,
+  "properties": {
+    "message": {
+      "type": "string",
+      "const": "Order Placed Successfully"
+    },
+    "orders": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

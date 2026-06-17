@@ -1,0 +1,116 @@
+# =============================================================================
+# GitHub Actions — Performance Test Pipeline (Robot Framework)
+# =============================================================================
+# Mirror of ci/azure-performance-pipeline.yml.
+#
+# What it does:
+#   1. Runs the browser-level performance suite (tests/performance/) headless —
+#      page-load budgets (Navigation Timing), login transaction SLA, and the
+#      repeated-sample p90 baseline.
+#   2. Publishes Allure results and RF logs as artifacts.
+#   3. Emails log.html on failure.
+#
+# Runs nightly (for trend data) and on pushes that touch performance-related
+# files. Budgets can be tuned per manual run via the workflow_dispatch inputs.
+#
+# Required secrets: GMAIL_USER, GMAIL_APP_PASSWORD
+# =============================================================================
+
+name: Performance Suite
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - tests/performance/**
+      - pages/**
+      - keywords/**
+      - data/test_data.robot
+      - .github/workflows/performance.yml
+  pull_request:
+    branches: [main]
+  schedule:
+    # Nightly run at 02:00 UTC — keeps the baseline trend accumulating data
+    # points even with no code changes. (GitHub schedules run on the default
+    # branch; ensure 'develop' is default or move this to main.)
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      loginSlaMs:
+        description: Login SLA (ms)
+        type: number
+        default: 5000
+      baselineIterations:
+        description: Baseline iterations
+        type: number
+        default: 5
+
+env:
+  PYTHON_VERSION: "3.12"
+  OUTPUT_DIR: ${{ github.workspace }}/results
+  ALLURE_DIR: ${{ github.workspace }}/results/allure-results
+  # Fall back to the Azure defaults on push/schedule (no dispatch inputs).
+  LOGIN_SLA_MS: ${{ inputs.loginSlaMs || '5000' }}
+  BASELINE_ITERATIONS: ${{ inputs.baselineIterations || '5' }}
+
+jobs:
+  performance:
+    name: Browser performance budgets
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Use Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Playwright browsers + Browser library node deps
+        run: |
+          playwright install --with-deps chromium
+          python -m Browser.entry init
+
+      - name: Create output directories
+        run: mkdir -p "${OUTPUT_DIR}" "${ALLURE_DIR}"
+
+      - name: Run performance suite
+        run: |
+          python -m robot \
+            --outputdir "${OUTPUT_DIR}" \
+            --variable HEADLESS_MODE:True \
+            --variable LOGIN_SLA_MS:"${LOGIN_SLA_MS}" \
+            --variable BASELINE_ITERATIONS:"${BASELINE_ITERATIONS}" \
+            --listener allure_robotframework:"${ALLURE_DIR}" \
+            --loglevel INFO \
+            --name "Performance Suite" \
+            tests/performance/
+
+      - name: Publish Allure results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-performance
+          path: ${{ env.ALLURE_DIR }}
+
+      # log.html contains the [PERF] metric lines that form the baseline trail
+      - name: Publish RF logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: robot-logs-performance
+          path: ${{ env.OUTPUT_DIR }}
+
+      - name: Notify on failure
+        if: failure()
+        uses: ./.github/actions/notify-on-failure
+        with:
+          pipeline-name: "Performance Suite"
+          artifact-dir: ${{ env.OUTPUT_DIR }}
+          gmail-user: ${{ secrets.GMAIL_USER }}
+          gmail-app-password: ${{ secrets.GMAIL_APP_PASSWORD }}

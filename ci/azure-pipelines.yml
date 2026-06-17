@@ -14,6 +14,11 @@
 #   5. terraform destroy       →  tears down all containers (always runs)
 #   6. Publishes Allure results and RF logs as pipeline artifacts
 #   7. Publishes browser traces on failure
+#   8. Sends email notification on failure (with log.html attached)
+#   9. In a separate Report stage, generates and publishes the Allure HTML report
+#
+#  10. utils/run_iac.sh smoke/MVP/Regression/E2E/Integration with IaC stack
+#  11. utils/parallel.sh smoke/MVP/Regression/E2E/Integration 4   [4=number of parallel jobs]
 # =============================================================================
 
 trigger:

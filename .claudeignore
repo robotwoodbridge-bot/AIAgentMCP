@@ -1,6 +1,5 @@
 __pycache__
 results
-!ee_docs/files/*
 .DS_Store
 .venv
 .vscode
@@ -11,7 +10,5 @@ results
 *.zip
 /*.csv
 /*.xlsx
-deletethis.txt
-LAP_Duration*
 results
 *.log

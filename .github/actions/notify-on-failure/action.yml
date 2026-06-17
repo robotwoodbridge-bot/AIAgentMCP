@@ -1,0 +1,124 @@
+# =============================================================================
+# Composite action — email notification on test failure
+# =============================================================================
+# GitHub Actions equivalent of ci/templates/notify-on-failure.yml.
+# Sends log.html as an attachment to robotwoodbridge@gmail.com via Gmail SMTP.
+#
+# Runs inline as a step inside the calling job (like the Azure step template),
+# so log.html is still on the runner's disk when this fires.
+#
+# Prerequisites — add these as repository (or environment) secrets:
+#   GMAIL_USER         → robotwoodbridge@gmail.com
+#   GMAIL_APP_PASSWORD → Gmail App Password (NOT your account password)
+#                        Generate at: myaccount.google.com/apppasswords
+#
+# Usage (call only on failure):
+#   - name: Notify on failure
+#     if: failure()
+#     uses: ./.github/actions/notify-on-failure
+#     with:
+#       pipeline-name: "QA Smoke Suite"
+#       artifact-dir: ${{ env.RESULTS_DIR }}
+#       gmail-user: ${{ secrets.GMAIL_USER }}
+#       gmail-app-password: ${{ secrets.GMAIL_APP_PASSWORD }}
+# =============================================================================
+
+name: Notify on failure
+description: Email log.html to the QA inbox via Gmail SMTP when a job fails.
+
+inputs:
+  pipeline-name:
+    description: Human-readable name of the pipeline/workflow.
+    required: false
+    default: QA Pipeline
+  artifact-dir:
+    description: Directory containing log.html.
+    required: false
+    default: ${{ github.workspace }}/results
+  gmail-user:
+    description: Gmail sender address (pass secrets.GMAIL_USER).
+    required: true
+  gmail-app-password:
+    description: Gmail app password (pass secrets.GMAIL_APP_PASSWORD).
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Send failure notification email
+      shell: bash
+      env:
+        GMAIL_USER: ${{ inputs.gmail-user }}
+        GMAIL_APP_PASSWORD: ${{ inputs.gmail-app-password }}
+        PIPELINE_NAME: ${{ inputs.pipeline-name }}
+        ARTIFACT_DIR: ${{ inputs.artifact-dir }}
+        BUILD_NUMBER: ${{ github.run_number }}
+        BUILD_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        SOURCE_BRANCH: ${{ github.ref_name }}
+        SOURCE_VERSION: ${{ github.sha }}
+        REQUESTED_FOR: ${{ github.actor }}
+      run: |
+        set -euo pipefail
+
+        RECIPIENT="robotwoodbridge@gmail.com"
+        echo "Sending failure notification to ${RECIPIENT}..."
+
+        export RECIPIENT
+        export LOG_FILE="${ARTIFACT_DIR}/log.html"
+
+        python3 - <<'PYEOF'
+        import smtplib, os
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
+        from email.mime.base import MIMEBase
+        from email import encoders
+
+        sender    = os.environ["GMAIL_USER"]
+        password  = os.environ["GMAIL_APP_PASSWORD"]
+        recipient = os.environ["RECIPIENT"]
+        log_file  = os.environ["LOG_FILE"]
+
+        pipeline  = os.environ["PIPELINE_NAME"]
+        build_num = os.environ["BUILD_NUMBER"]
+        build_url = os.environ["BUILD_URL"]
+        branch    = os.environ["SOURCE_BRANCH"]
+        commit    = os.environ["SOURCE_VERSION"]
+        actor     = os.environ["REQUESTED_FOR"]
+
+        subject = f"❌ [FAILED] {pipeline} — Run #{build_num}"
+
+        body = f"""A test failure was detected in the robotkali pipeline.
+
+        Pipeline : {pipeline}
+        Branch   : {branch}
+        Run      : #{build_num}
+        Commit   : {commit}
+        Triggered: {actor}
+        View run : {build_url}
+
+        The Robot Framework log (log.html) is attached for full details.
+        """
+
+        msg = MIMEMultipart()
+        msg["From"]    = sender
+        msg["To"]      = recipient
+        msg["Subject"] = subject
+        msg.attach(MIMEText(body, "plain"))
+
+        if os.path.exists(log_file):
+            with open(log_file, "rb") as f:
+                part = MIMEBase("application", "octet-stream")
+                part.set_payload(f.read())
+                encoders.encode_base64(part)
+                part.add_header("Content-Disposition", 'attachment; filename="log.html"')
+                msg.attach(part)
+            print(f"Attaching {log_file}")
+        else:
+            print(f"WARNING: log.html not found at {log_file} — sending without attachment")
+
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(sender, password)
+            server.sendmail(sender, recipient, msg.as_string())
+
+        print(f"Notification sent to {recipient}")
+        PYEOF

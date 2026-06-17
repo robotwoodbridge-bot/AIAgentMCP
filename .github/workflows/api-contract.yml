@@ -1,0 +1,100 @@
+# =============================================================================
+# GitHub Actions — API Contract Tests
+# =============================================================================
+# Mirror of ci/azure-contract-pipeline.yml.
+#
+# Runs the EcomBasic API contract suite (tests/api/) directly on the runner.
+# No Docker/Terraform stack needed — these are pure HTTP tests, so this
+# workflow is much faster than the IaC smoke workflow.
+# =============================================================================
+
+name: API Contract Tests
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - tests/api/**
+      - keywords/api_keywords.robot
+      - .github/workflows/api-contract.yml
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+env:
+  RESULTS_DIR: ${{ github.workspace }}/results
+  ALLURE_DIR: ${{ github.workspace }}/results/allure-results
+
+jobs:
+  contract:
+    name: Robot Framework (contract)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Contract tests only need the API-testing subset of requirements —
+      # installing the full file pulls in Playwright/browser deps for nothing.
+      - name: Install API test dependencies
+        run: |
+          pip install \
+            robotframework==7.0 \
+            robotframework-requests==0.9.7 \
+            requests==2.32.3 \
+            jsonschema==4.23.0 \
+            allure-robotframework==2.13.5 \
+            PyYAML==6.0.2
+
+      - name: Run contract tests
+        run: |
+          mkdir -p "${RESULTS_DIR}" "${ALLURE_DIR}"
+          python -m robot \
+            --outputdir "${RESULTS_DIR}" \
+            --include contract \
+            --listener allure_robotframework:"${ALLURE_DIR}" \
+            tests/api/
+
+      - name: Publish Allure results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-contract
+          path: ${{ env.ALLURE_DIR }}
+
+      - name: Publish RF logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: robot-logs-contract
+          path: ${{ env.RESULTS_DIR }}
+
+  report:
+    name: Generate Allure HTML Report
+    runs-on: ubuntu-latest
+    needs: contract
+    if: always()
+
+    steps:
+      - name: Download Allure results
+        uses: actions/download-artifact@v4
+        with:
+          name: allure-results-contract
+          path: allure-results
+
+      - name: Generate Allure HTML report
+        run: |
+          npm install -g allure-commandline
+          allure generate allure-results --clean -o allure-report
+
+      - name: Publish Allure HTML report
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-report-contract
+          path: allure-report

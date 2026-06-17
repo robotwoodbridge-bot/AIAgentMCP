@@ -1,6 +1,6 @@
 datasources:e1ea64ddab46cbda9fa333f6dda9af76581832ac
 commandlineoptions:f85eb69364b86e745c2cb99a110834736669a86c
 suitesfrom:no-suites-from-option
-file:9250745a1a3b3a2064069839f81d7db772fe8acc
---test Tests.Smoke.Sample-Login-Test.Valid Login Shows Secure Area
---test Tests.Smoke.Sample-Login-Test.Invalid Login Shows Error Message
+file:aea53785f5c124454bc633748da11c5e33a72e2a
+--test Smoke.Sample-Login-Test.Valid Login Shows Secure Area
+--test Smoke.Sample-Login-Test.Invalid Login Shows Error Message

@@ -1,0 +1,168 @@
+# =============================================================================
+# GitHub Actions — QA Pipeline (IaC mode)
+# =============================================================================
+# Mirror of ci/azure-pipelines.yml.
+#
+# What it does:
+#   1. Checks out the repo
+#   2. Pins Terraform 1.8.5 via direct install (no setup-terraform — keeps
+#      parity with the Azure pipeline which avoids the wrapper for
+#      provider:local / no cloud backend)
+#   3. terraform init + apply  →  spins up playwright-runner, Loki, Grafana
+#   4. Runs the Robot Framework smoke suite inside the container via docker exec
+#   5. terraform destroy       →  tears down all containers (always runs)
+#   6. Publishes Allure results and RF logs as artifacts
+#   7. Publishes browser traces on failure
+#   8. Sends email notification on failure (with log.html attached)
+#   9. In a separate Report job, generates and publishes the Allure HTML report
+#
+# Required secrets: GMAIL_USER, GMAIL_APP_PASSWORD
+# Manual run: Actions → QA Pipeline (IaC) → Run workflow
+# =============================================================================
+
+name: QA Pipeline (IaC)
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+env:
+  TF_VERSION: "1.8.5"
+  TF_DIR: ${{ github.workspace }}/infra/terraform
+  RESULTS_DIR: ${{ github.workspace }}/results
+  ALLURE_DIR: ${{ github.workspace }}/results/allure-results
+  CONTAINER: qa-playwright-runner
+
+jobs:
+  iac-test:
+    name: Terraform + Robot Framework (smoke)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ---------------------------------------------------------------------
+      # Pin Terraform version — skips install if already correct version.
+      # ---------------------------------------------------------------------
+      - name: Install Terraform ${{ env.TF_VERSION }}
+        run: |
+          INSTALLED=$(terraform version -json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['terraform_version'])" 2>/dev/null || echo "none")
+          if [ "$INSTALLED" = "${TF_VERSION}" ]; then
+            echo "Terraform ${TF_VERSION} already present — skipping install."
+          else
+            echo "Installing Terraform ${TF_VERSION}..."
+            curl -fsSL "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip" -o /tmp/terraform.zip
+            unzip -q /tmp/terraform.zip -d /tmp
+            sudo mv /tmp/terraform /usr/local/bin/terraform
+          fi
+          terraform version
+
+      - name: Terraform init
+        run: terraform -chdir="${TF_DIR}" init -input=false
+
+      - name: Terraform apply (start IaC stack)
+        run: terraform -chdir="${TF_DIR}" apply -auto-approve -input=false
+
+      # ---------------------------------------------------------------------
+      # Wait for the playwright-runner container to be running
+      # ---------------------------------------------------------------------
+      - name: Wait for container ready
+        run: |
+          echo "Waiting for ${CONTAINER} to be running..."
+          STATUS="missing"
+          for i in $(seq 1 20); do
+            STATUS=$(docker inspect --format='{{.State.Status}}' "${CONTAINER}" 2>/dev/null || echo "missing")
+            echo "  attempt $i: $STATUS"
+            [ "$STATUS" = "running" ] && break
+            sleep 3
+          done
+          if [ "$STATUS" != "running" ]; then
+            echo "ERROR: Container did not start in time"
+            exit 1
+          fi
+
+      # ---------------------------------------------------------------------
+      # Run smoke suite inside the container
+      # ---------------------------------------------------------------------
+      - name: Run smoke tests in container
+        continue-on-error: true
+        run: |
+          mkdir -p "${RESULTS_DIR}" "${ALLURE_DIR}"
+          docker exec "${CONTAINER}" python -m robot \
+            --outputdir results \
+            --variable HEADLESS_MODE:True \
+            --listener allure_robotframework:results/allure-results \
+            tests/smoke/
+
+      # ---------------------------------------------------------------------
+      # terraform destroy — ALWAYS runs so containers never leak
+      # ---------------------------------------------------------------------
+      - name: Terraform destroy (tear down IaC stack)
+        if: always()
+        run: terraform -chdir="${TF_DIR}" destroy -auto-approve -input=false
+
+      - name: Publish Allure results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-smoke
+          path: ${{ env.ALLURE_DIR }}
+
+      - name: Publish RF logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: robot-logs-smoke
+          path: ${{ env.RESULTS_DIR }}
+
+      - name: Publish browser traces (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-traces-smoke
+          path: ${{ env.RESULTS_DIR }}/browser/traces
+          if-no-files-found: ignore
+
+      # ---------------------------------------------------------------------
+      # Email notification on any test failure — sends log.html
+      # ---------------------------------------------------------------------
+      - name: Notify on failure
+        if: failure()
+        uses: ./.github/actions/notify-on-failure
+        with:
+          pipeline-name: "QA Smoke Suite"
+          artifact-dir: ${{ env.RESULTS_DIR }}
+          gmail-user: ${{ secrets.GMAIL_USER }}
+          gmail-app-password: ${{ secrets.GMAIL_APP_PASSWORD }}
+
+  # -------------------------------------------------------------------------
+  # Report job — generate Allure HTML from the results artifact
+  # -------------------------------------------------------------------------
+  report:
+    name: Generate Allure HTML Report
+    runs-on: ubuntu-latest
+    needs: iac-test
+    if: always()
+
+    steps:
+      - name: Download Allure results
+        uses: actions/download-artifact@v4
+        with:
+          name: allure-results-smoke
+          path: allure-results
+
+      - name: Generate Allure HTML report
+        run: |
+          npm install -g allure-commandline
+          allure generate allure-results --clean -o allure-report
+
+      - name: Publish Allure HTML report
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-report
+          path: allure-report

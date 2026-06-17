@@ -54,7 +54,21 @@ robotkali/
 │   ├── docker-compose.yml      # Selenium Grid, Loki, Grafana, test-runner services
 │   ├── Dockerfile.runner       # Container image for CI-style execution
 │   └── loki-config.yaml        # Loki log aggregation config
-├── ci/azure-pipelines.yml      # Azure Pipelines workflow — register under Pipelines → New Pipeline
+├── ci/                         # Azure Pipelines YAML (register under Pipelines → New Pipeline)
+│   ├── azure-pipelines.yml             # IaC smoke suite (Terraform + Playwright)
+│   ├── azure-contract-pipeline.yml     # API contract tests
+│   ├── azure-performance-pipeline.yml  # Browser performance budgets (nightly)
+│   ├── azure-load-pipeline.yml         # k6 load tests (manual + weekly)
+│   ├── azure-security-pipeline.yml     # ZAP / Nikto / Nmap scans
+│   └── templates/notify-on-failure.yml # Reusable failure-email step template
+├── .github/
+│   ├── workflows/              # GitHub Actions mirror of the ci/ pipelines
+│   │   ├── qa-smoke-iac.yml            # ↔ azure-pipelines.yml
+│   │   ├── api-contract.yml            # ↔ azure-contract-pipeline.yml
+│   │   ├── performance.yml             # ↔ azure-performance-pipeline.yml
+│   │   ├── load.yml                    # ↔ azure-load-pipeline.yml
+│   │   └── security.yml                # ↔ azure-security-pipeline.yml
+│   └── actions/notify-on-failure/      # Composite action ↔ notify-on-failure.yml template
 ├── utils/
 │   ├── run_parallel.sh         # Pabot parallel runner wrapper (local, no Docker)
 │   └── run_iac.sh              # Playwright runner inside Terraform IaC container
@@ -93,12 +107,44 @@ The `test-runner` service only starts with `--profile run`.
 
 ## CI/CD
 
-Azure Pipelines at `ci/azure-pipelines.yml` — register it under **Pipelines → New Pipeline → Azure Repos Git** in the ADO portal.
+The same set of pipelines runs on **two** CI systems, kept in parity. Edit both
+sides when changing a pipeline.
 
-- Triggers on push/PR to `main` or `develop`, plus manual queue
-- Runs `pabot` with 4 workers in headless mode
-- Publishes Allure HTML report as a downloadable pipeline artifact
-- Uploads browser traces as artifacts on failure
+| Pipeline | Azure (`ci/`) | GitHub Actions (`.github/workflows/`) |
+|---|---|---|
+| IaC smoke suite | `azure-pipelines.yml` | `qa-smoke-iac.yml` |
+| API contract tests | `azure-contract-pipeline.yml` | `api-contract.yml` |
+| Performance budgets | `azure-performance-pipeline.yml` | `performance.yml` |
+| k6 load tests | `azure-load-pipeline.yml` | `load.yml` |
+| Security scans | `azure-security-pipeline.yml` | `security.yml` |
+| Failure-email helper | `templates/notify-on-failure.yml` | `actions/notify-on-failure/` (composite) |
+
+### Azure Pipelines
+
+Register each YAML under **Pipelines → New Pipeline → Azure Repos Git → robotkali
+→ Existing Azure Pipelines YAML file**. Configure pipeline secret variables:
+`GMAIL_USER`, `GMAIL_APP_PASSWORD` (failure emails) and `LOGIN_USERNAME`,
+`LOGIN_PASSWORD` (load test).
+
+### GitHub Actions
+
+Workflows live in `.github/workflows/` and appear under the repo **Actions** tab
+once pushed. Every workflow has a `workflow_dispatch` trigger, so each can be run
+on demand via **Actions → (workflow) → Run workflow**.
+
+- **Triggers** mirror the Azure side: push/PR path filters, the nightly
+  performance cron (`0 2 * * *`) and weekly load cron (`0 3 * * 0`).
+- **Secrets** (Settings → Secrets and variables → Actions): `GMAIL_USER`,
+  `GMAIL_APP_PASSWORD`, `LOGIN_USERNAME`, `LOGIN_PASSWORD` — same names as Azure.
+- **Failure emails** are sent by the `notify-on-failure` composite action, which
+  runs inline in the job so `log.html` is still on disk to attach.
+- **Scheduled-run caveat:** GitHub `schedule` triggers only fire from the
+  **default branch**. The Azure crons target `develop`; if `develop` is not the
+  default branch, the nightly/weekly runs won't fire until these files exist on
+  the default branch.
+- **Artifacts** are published with `upload-artifact@v4` and downloadable from the
+  run summary; the smoke and contract workflows add a `report` job that builds
+  the Allure HTML report.
 
 ## Stack
 

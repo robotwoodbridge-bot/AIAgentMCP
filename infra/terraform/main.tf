@@ -109,6 +109,12 @@ resource "docker_container" "playwright_runner" {
 
   restart = "unless-stopped"
 
+  # The image tag is :latest, so a rebuild alone doesn't register as a change —
+  # recreate the container whenever the build (Dockerfile/requirements) changes.
+  lifecycle {
+    replace_triggered_by = [null_resource.playwright_runner_build]
+  }
+
   depends_on = [docker_container.loki]
 }
 

@@ -1,0 +1,112 @@
+# =============================================================================
+# GitHub Actions — Load Test Pipeline (k6)
+# =============================================================================
+# Mirror of ci/azure-load-pipeline.yml.
+#
+# What it does:
+#   1. Installs k6 and runs tests/performance/k6/login_load_test.js with the
+#      selected profile. k6 thresholds (error rate, p95 latency, success rate)
+#      gate the run — any breach fails the workflow.
+#   2. Publishes the JSON summary as an artifact for trend comparison.
+#   3. Emails a notification on failure.
+#
+# Triggering policy:
+#   - NO automatic trigger on push/PR — load tests generate sustained traffic
+#     and must not fire on every commit, especially against shared staging.
+#   - Manual run with a profile picker (smoke / load / stress).
+#   - Weekly scheduled "load" profile run for capacity trend data.
+#
+# Point baseUrl at an environment you own before running the stress profile.
+# Required secrets: GMAIL_USER, GMAIL_APP_PASSWORD, LOGIN_USERNAME, LOGIN_PASSWORD
+# =============================================================================
+
+name: Load Test (k6)
+
+on:
+  schedule:
+    # Weekly load-profile run, Sunday 03:00 UTC — low-traffic window, keeps a
+    # capacity trend without hammering the shared staging site.
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Load profile
+        type: choice
+        default: smoke
+        options:
+          - smoke
+          - load
+          - stress
+      baseUrl:
+        description: Target base URL
+        type: string
+        default: https://practice.expandtesting.com
+
+env:
+  K6_VERSION: "0.57.0"
+  RESULTS_DIR: ${{ github.workspace }}/results/k6
+  BASE_URL: ${{ inputs.baseUrl || 'https://practice.expandtesting.com' }}
+  # Scheduled runs always use the load profile; manual runs use the picker.
+  EFFECTIVE_PROFILE: ${{ github.event_name == 'schedule' && 'load' || inputs.profile }}
+
+jobs:
+  load-test:
+    name: k6 login load test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ---------------------------------------------------------------------
+      # Install a pinned k6 version for reproducible numbers
+      # ---------------------------------------------------------------------
+      - name: Install k6 ${{ env.K6_VERSION }}
+        run: |
+          set -euo pipefail
+          echo "Installing k6 v${K6_VERSION}..."
+          curl -fsSL "https://github.com/grafana/k6/releases/download/v${K6_VERSION}/k6-v${K6_VERSION}-linux-amd64.tar.gz" -o /tmp/k6.tar.gz
+          tar -xzf /tmp/k6.tar.gz -C /tmp
+          sudo mv "/tmp/k6-v${K6_VERSION}-linux-amd64/k6" /usr/local/bin/k6
+          k6 version
+
+      # ---------------------------------------------------------------------
+      # Run the load test — k6 exits non-zero if any threshold is breached,
+      # which fails this step and the workflow
+      # ---------------------------------------------------------------------
+      - name: Run k6 (${{ env.EFFECTIVE_PROFILE }} profile)
+        env:
+          LOGIN_USERNAME: ${{ secrets.LOGIN_USERNAME }}
+          LOGIN_PASSWORD: ${{ secrets.LOGIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${RESULTS_DIR}"
+          k6 run \
+            -e PROFILE="${EFFECTIVE_PROFILE}" \
+            -e BASE_URL="${BASE_URL}" \
+            --summary-export "${RESULTS_DIR}/login-${EFFECTIVE_PROFILE}-${GITHUB_RUN_NUMBER}.json" \
+            tests/performance/k6/login_load_test.js
+
+      # ---------------------------------------------------------------------
+      # Publish the JSON summary — compare across runs for trends
+      # ---------------------------------------------------------------------
+      - name: Publish k6 summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-summary-${{ env.EFFECTIVE_PROFILE }}
+          path: ${{ env.RESULTS_DIR }}
+
+      # ---------------------------------------------------------------------
+      # Email notification on threshold breach
+      # (no log.html for k6 — the action sends without attachment)
+      # ---------------------------------------------------------------------
+      - name: Notify on failure
+        if: failure()
+        uses: ./.github/actions/notify-on-failure
+        with:
+          pipeline-name: "k6 Load Test (${{ env.EFFECTIVE_PROFILE }})"
+          artifact-dir: ${{ env.RESULTS_DIR }}
+          gmail-user: ${{ secrets.GMAIL_USER }}
+          gmail-app-password: ${{ secrets.GMAIL_APP_PASSWORD }}

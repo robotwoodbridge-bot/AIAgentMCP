@@ -18,7 +18,7 @@ ${INVALID_PASSWORD}         WrongPassword123
 
 # Expected Messages
 ${SUCCESS_LOGIN_MESSAGE}    You logged into a secure area!
-${FAILURE_LOGIN_MESSAGE}    Your username is invalid!
+${FAILURE_LOGIN_MESSAGE}    TODO-Your username is invalid!
 
 # Browser Configuration
 ${BROWSER_TYPE}             Chromium

@@ -23,9 +23,10 @@ Enter Password
 
 Click Submit Button
     Click    ${SUBMIT_BUTTON}
+    Wait For Load State    domcontentloaded
 
 Get Flash Message
-    Wait For Elements State    ${FLASH_MESSAGE}    visible
+    Wait For Elements State    ${FLASH_MESSAGE}    visible    timeout=15s
     ${message}=    Get Text    ${FLASH_MESSAGE}
     RETURN    ${message}
 
