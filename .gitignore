@@ -18,6 +18,7 @@ reports/
 *.xml
 *.zip
 *copy*
+*.log
 playwright-log.txt
 
 
