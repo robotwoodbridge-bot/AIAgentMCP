@@ -48,3 +48,12 @@ ollama==0.5.1
 
 # Optional MCP support
 mcp==1.8.1
+
+# synthetic data generation
+nltk
+pandas
+pandasgui
+numpy
+matplotlib
+datetime
+

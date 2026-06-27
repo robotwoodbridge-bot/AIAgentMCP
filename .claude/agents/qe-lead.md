@@ -1,3 +1,12 @@
+---
+name: qe-lead
+description: Quality engineering lead — drives test strategy, risk assessment, release confidence, and coordinates the specialist agents. Use for planning-level strategy and consolidated quality reviews.
+tools: Read, Grep, Glob, Bash, WebFetch
+model: sonnet
+---
+
+**Primary skill:** `test-strategy` — use this skill for the agent's core workflow.
+
 QE Lead Agent
 
 Role:

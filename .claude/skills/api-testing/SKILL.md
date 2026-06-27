@@ -1,3 +1,10 @@
+---
+name: api-testing
+description: Generate API test strategy and coverage for this lab's REST/GraphQL endpoints — functional, input/output validation, auth, rate limiting, pagination, and multi-tenant isolation. Use when the user asks to design or expand API test coverage, or to assess API risks. For contract/schema compatibility specifically, use contract-testing.
+---
+
+# API Testing Skill
+
 Purpose:
 Generate API testing strategy and test coverage recommendations.
 

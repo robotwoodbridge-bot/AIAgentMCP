@@ -12,6 +12,7 @@ infra/terraform/override.tf.json
 .vscode
 results/
 reports/
+temp/
 *.html
 *.pdf
 *.png
