@@ -1,3 +1,8 @@
+---
+name: risk-analysis
+description: Evaluate quality risk for a change, feature, or release in this lab — categorize business/customer/security/performance/operational risk, rate severity, and recommend mitigations. Use when the user asks to assess risk, prioritize testing by risk, or surface what could go wrong.
+---
+
 # Risk Analysis Skill
 
 Purpose:
